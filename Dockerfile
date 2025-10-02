@@ -62,6 +62,9 @@ COPY kp14/requirements.txt /tmp/kp14-requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/kp14-requirements.txt && \
     rm /tmp/kp14-requirements.txt
 
+# Install OpenVINO for hardware acceleration (NPU/GPU/GNA/CPU)
+RUN pip3 install --no-cache-dir openvino==2025.3.0
+
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash c2enum && \
     mkdir -p /home/c2enum/toolkit /home/c2enum/output && \

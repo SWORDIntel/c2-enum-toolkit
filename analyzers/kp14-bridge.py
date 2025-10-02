@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-KP14 Bridge Module
+KP14 Bridge Module with OpenVINO Hardware Acceleration
 Integrates KP14 steganography and decryption capabilities for C2 endpoint discovery
 """
 
@@ -27,13 +27,42 @@ except ImportError as e:
     print("Falling back to basic extraction", file=sys.stderr)
     KNOWN_XOR_KEYS = ["9e", "d3", "a5", "0a61200d"]
 
+# OpenVINO Hardware Acceleration
+try:
+    from openvino.runtime import Core
+    OPENVINO_AVAILABLE = True
+except ImportError:
+    OPENVINO_AVAILABLE = False
+
+# Try to import our accelerator
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from openvino_accelerator import HardwareAccelerator
+    HW_ACCEL_AVAILABLE = True
+except ImportError:
+    HW_ACCEL_AVAILABLE = False
+
 class C2EndpointDiscovery:
     """Main class for discovering C2 endpoints from encrypted/encoded data"""
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, use_hardware_accel=True):
         self.verbose = verbose
         self.discovered_endpoints = []
         self.confidence_scores = {}
+        self.hw_accel = None
+
+        # Initialize hardware acceleration if available
+        if use_hardware_accel and HW_ACCEL_AVAILABLE:
+            try:
+                self.hw_accel = HardwareAccelerator(verbose=self.verbose)
+                self.log(f"Hardware acceleration: {self.hw_accel.recommended_device}")
+            except Exception as e:
+                self.log(f"Hardware acceleration unavailable: {e}")
+                self.hw_accel = None
+        elif use_hardware_accel and OPENVINO_AVAILABLE:
+            self.log("OpenVINO available but accelerator module not loaded")
+        else:
+            self.log("Using CPU-only mode")
 
     def log(self, message):
         """Log message if verbose"""

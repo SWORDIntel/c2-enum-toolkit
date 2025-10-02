@@ -1416,6 +1416,7 @@ while true; do
     "2) Enumerate a specific target" \
     "3) Add a new target" \
     "C) COMPREHENSIVE SCAN (aggressive)" \
+    "I) INTELLIGENT ANALYSIS (AI-powered, auto-chain)" \
     "R) Quick reachability check" \
     "4) File picker (inspect outputs)" \
     "5) Decompress *.zst to *.bin (read-only)" \
@@ -1426,6 +1427,7 @@ while true; do
     "0) View log" \
     "P) PCAP controls (Start/Stop/Status/Stats)" \
     "T) Tor status check" \
+    "H) Hardware status (NPU/GPU/CPU)" \
     "A) Advanced (port scan, snapshots, assets, headers)" \
     "E) Export JSON report" \
     "S) Summary dashboard" \
@@ -1502,6 +1504,50 @@ while true; do
       fi
       ;;
 
+    "I) INTELLIGENT ANALYSIS (AI-powered, auto-chain)")
+      say "═══ INTELLIGENT ANALYSIS ORCHESTRATOR ═══"
+      say ""
+      say "AI-powered analysis with hardware acceleration (NPU/GPU/CPU)"
+      say ""
+      say "Select Analysis Profile:"
+      echo "  1) Fast (CPU-only, basic tools)"
+      echo "  2) Balanced (GPU/NPU, standard tools)"
+      echo "  3) Exhaustive (All hardware, all tools, recursive)"
+      read -r profile_choice
+
+      case "$profile_choice" in
+        1) profile="fast" ;;
+        2) profile="balanced" ;;
+        3) profile="exhaustive" ;;
+        *) say "Invalid choice"; continue ;;
+      esac
+
+      local orchestrator_script="$(dirname "$0")/analyzers/orchestrator.sh"
+      [[ ! -f "$orchestrator_script" ]] && orchestrator_script="/home/c2enum/toolkit/analyzers/orchestrator.sh"
+
+      if [[ -f "$orchestrator_script" ]]; then
+        say "[*] Running intelligent analysis ($profile profile)..."
+        bash "$orchestrator_script" "$OUTDIR" "$profile" 3
+
+        say ""
+        say "[✓] Intelligent analysis complete!"
+        say ""
+        echo "View results? (y/N)"
+        read -r view_choice
+
+        if [[ "$view_choice" =~ ^[Yy]$ ]]; then
+          [[ -f "$OUTDIR/intelligent_analysis/all_discovered_endpoints.txt" ]] && \
+            "$LESS_BIN" "$OUTDIR/intelligent_analysis/all_discovered_endpoints.txt"
+        fi
+      else
+        say "[✗] Orchestrator not found"
+      fi
+
+      echo ""
+      echo "Press Enter to continue..."
+      read -r
+      ;;
+
     "R) Quick reachability check")
       say "═══ Quick Reachability Check ═══"
       say ""
@@ -1509,6 +1555,36 @@ while true; do
         test_onion_reachable "$tgt" || true
         say ""
       done
+      echo "Press Enter to continue..."
+      read -r
+      ;;
+
+    "H) Hardware status (NPU/GPU/CPU)")
+      clear
+      say "═══ Hardware Acceleration Status ═══"
+      say ""
+
+      local hw_detect_script="$(dirname "$0")/analyzers/hw-detect.sh"
+      [[ ! -f "$hw_detect_script" ]] && hw_detect_script="/home/c2enum/toolkit/analyzers/hw-detect.sh"
+
+      if [[ -f "$hw_detect_script" ]]; then
+        bash "$hw_detect_script" text
+      else
+        say "[✗] Hardware detection script not found"
+      fi
+
+      # Also show OpenVINO status
+      if command -v python3 >/dev/null 2>&1; then
+        local ov_accel="$(dirname "$0")/analyzers/openvino-accelerator.py"
+        [[ ! -f "$ov_accel" ]] && ov_accel="/home/c2enum/toolkit/analyzers/openvino-accelerator.py"
+
+        if [[ -f "$ov_accel" ]]; then
+          say ""
+          python3 "$ov_accel" --detect 2>&1 || say "OpenVINO check failed"
+        fi
+      fi
+
+      echo ""
       echo "Press Enter to continue..."
       read -r
       ;;
