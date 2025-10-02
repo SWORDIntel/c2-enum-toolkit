@@ -1082,14 +1082,14 @@ advanced_menu(){
         echo "  2) Custom directory"
         read -r choice
 
-        local scan_dir="$OUTDIR"
+        scan_dir="$OUTDIR"
         if [[ "$choice" == "2" ]]; then
           echo "Enter directory path:"
           read -r scan_dir
         fi
 
         if [[ -d "$scan_dir" ]]; then
-          local kp14_script="$(dirname "$0")/analyzers/kp14-autodiscover.sh"
+          kp14_script="$(dirname "$0")/analyzers/kp14-autodiscover.sh"
           [[ ! -f "$kp14_script" ]] && kp14_script="/home/c2enum/toolkit/analyzers/kp14-autodiscover.sh"
 
           if [[ -f "$kp14_script" ]]; then
@@ -1098,7 +1098,7 @@ advanced_menu(){
 
             # Check results
             if [[ -f "$scan_dir/kp14_discovery/discovered_endpoints.txt" ]]; then
-              local count=$(wc -l < "$scan_dir/kp14_discovery/discovered_endpoints.txt" 2>/dev/null || echo 0)
+              count=$(wc -l < "$scan_dir/kp14_discovery/discovered_endpoints.txt" 2>/dev/null || echo 0)
 
               if [[ $count -gt 0 ]]; then
                 say ""
@@ -1488,7 +1488,7 @@ while true; do
       if [[ "$confirm" =~ ^[Yy]$ ]]; then
         tgt=$(menu_impl "Select target for comprehensive scan" "${TARGETS[@]}")
         if [[ -n "$tgt" ]]; then
-          local comp_scan_script="$(dirname "$0")/c2-scan-comprehensive.sh"
+          comp_scan_script="$(dirname "$0")/c2-scan-comprehensive.sh"
           if [[ ! -f "$comp_scan_script" ]]; then
             comp_scan_script="/home/c2enum/toolkit/c2-scan-comprehensive.sh"
           fi
@@ -1527,7 +1527,7 @@ while true; do
         *) say "Invalid choice"; continue ;;
       esac
 
-      local orchestrator_script="$(dirname "$0")/analyzers/orchestrator.sh"
+      orchestrator_script="$(dirname "$0")/analyzers/orchestrator.sh"
       [[ ! -f "$orchestrator_script" ]] && orchestrator_script="/home/c2enum/toolkit/analyzers/orchestrator.sh"
 
       if [[ -f "$orchestrator_script" ]]; then
@@ -1569,7 +1569,7 @@ while true; do
       say "═══ Hardware Acceleration Status ═══"
       say ""
 
-      local hw_detect_script="$(dirname "$0")/analyzers/hw-detect.sh"
+      hw_detect_script="$(dirname "$0")/analyzers/hw-detect.sh"
       [[ ! -f "$hw_detect_script" ]] && hw_detect_script="/home/c2enum/toolkit/analyzers/hw-detect.sh"
 
       if [[ -f "$hw_detect_script" ]]; then
@@ -1580,7 +1580,7 @@ while true; do
 
       # Also show OpenVINO status
       if command -v python3 >/dev/null 2>&1; then
-        local ov_accel="$(dirname "$0")/analyzers/openvino-accelerator.py"
+        ov_accel="$(dirname "$0")/analyzers/openvino-accelerator.py"
         [[ ! -f "$ov_accel" ]] && ov_accel="/home/c2enum/toolkit/analyzers/openvino-accelerator.py"
 
         if [[ -f "$ov_accel" ]]; then
