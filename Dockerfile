@@ -64,11 +64,15 @@ RUN useradd -m -u 1000 -s /bin/bash c2enum && \
 # Copy toolkit files
 COPY --chown=c2enum:c2enum c2-enum-tui.sh /home/c2enum/toolkit/
 COPY --chown=c2enum:c2enum c2-scan-comprehensive.sh /home/c2enum/toolkit/
+COPY --chown=c2enum:c2enum c2-enum-cli.sh /home/c2enum/toolkit/
+COPY --chown=c2enum:c2enum analyzers/ /home/c2enum/toolkit/analyzers/
 COPY --chown=c2enum:c2enum *.md /home/c2enum/toolkit/
 
 # Make scripts executable
 RUN chmod +x /home/c2enum/toolkit/c2-enum-tui.sh && \
-    chmod +x /home/c2enum/toolkit/c2-scan-comprehensive.sh
+    chmod +x /home/c2enum/toolkit/c2-scan-comprehensive.sh && \
+    chmod +x /home/c2enum/toolkit/c2-enum-cli.sh && \
+    chmod +x /home/c2enum/toolkit/analyzers/*.sh
 
 # Grant tcpdump capabilities for PCAP (non-root capture)
 RUN setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump && \
