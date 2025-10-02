@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  c2-enum:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: c2-enum-toolkit:2.1
+    container_name: c2-enum-toolkit
+    hostname: c2enum
+
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW      # For PCAP capture
+      - NET_ADMIN    # For network operations
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Volumes for persistent data
+    volumes:
+      - ./output:/home/c2enum/output:rw
+      - ./config:/home/c2enum/.config:rw
+      # Optional: Mount custom targets
+      # - ./custom-targets.txt:/home/c2enum/targets.txt:ro
+
+    # Environment variables
+    environment:
+      - SOCKS=127.0.0.1:9050
+      - TZ=UTC
+      - VERBOSE=true
+
+    # Network configuration
+    network_mode: bridge
+
+    # Don't expose any ports (all via Tor)
+    # ports: []
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Interactive terminal
+    stdin_open: true
+    tty: true
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "--socks5-hostname", "127.0.0.1:9050", "-s", "https://check.torproject.org/api/ip"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Separate Tor container for advanced users
+  # tor-proxy:
+  #   image: dperson/torproxy:latest
+  #   container_name: tor-proxy
+  #   ports:
+  #     - "127.0.0.1:9050:9050"  # SOCKS proxy
+  #   restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  output:
+    driver: local

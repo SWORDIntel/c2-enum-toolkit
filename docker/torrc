@@ -1,0 +1,59 @@
+# Tor configuration for C2 Enumeration Toolkit Docker container
+# Optimized for .onion C2 analysis
+
+# SOCKS proxy
+SocksPort 0.0.0.0:9050
+SocksPolicy accept 127.0.0.1
+SocksPolicy accept 172.16.0.0/12
+SocksPolicy reject *
+
+# Data directory
+DataDirectory /var/lib/tor
+
+# Logging
+Log notice stdout
+
+# Circuit behavior
+CircuitBuildTimeout 60
+LearnCircuitBuildTimeout 0
+MaxCircuitDirtiness 600
+
+# Performance tuning for hidden services
+NumEntryGuards 8
+EnforceDistinctSubnets 1
+
+# Hidden service connections
+HiddenServiceSingleHopMode 0
+HiddenServiceNonAnonymousMode 0
+
+# Connection limits
+ConnLimit 1000
+MaxClientCircuitsPending 128
+
+# Exit policy (no exits, onion services only)
+ExitPolicy reject *:*
+ExitRelay 0
+
+# Security
+CookieAuthentication 0
+ControlPort 0
+
+# Circuit isolation for different streams
+IsolateDestAddr 1
+IsolateDestPort 0
+
+# Additional security
+SafeSocks 1
+TestSocks 0
+WarnPlaintextPorts 23,109,110,143
+
+# Bandwidth
+RelayBandwidthRate 0
+RelayBandwidthBurst 0
+
+# DNS
+DNSPort 0
+AutomapHostsOnResolve 0
+
+# Client only
+ClientOnly 1

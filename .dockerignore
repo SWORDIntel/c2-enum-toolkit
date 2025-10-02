@@ -1,0 +1,31 @@
+# Don't copy these to Docker image
+
+# Git
+.git
+.gitignore
+
+# Output directories
+intel_*/
+output/
+*.pcap
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+.DS_Store
+
+# Documentation (will be copied explicitly)
+# We want to include the .md files
+
+# Docker files (don't need in image)
+.dockerignore
+docker-compose.yml
+
+# IDE
+.vscode/
+.idea/
+
+# Test outputs
+test_*/

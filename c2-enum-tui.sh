@@ -1347,6 +1347,7 @@ while true; do
     "1) Re-enumerate all targets" \
     "2) Enumerate a specific target" \
     "3) Add a new target" \
+    "C) COMPREHENSIVE SCAN (aggressive)" \
     "R) Quick reachability check" \
     "4) File picker (inspect outputs)" \
     "5) Decompress *.zst to *.bin (read-only)" \
@@ -1389,6 +1390,47 @@ while true; do
         TARGETS+=("$new_target")
         say "[✓] Added: $new_target (Total targets: ${#TARGETS[@]})"
         log "Target added: $new_target"
+      fi
+      ;;
+
+    "C) COMPREHENSIVE SCAN (aggressive)")
+      say "═══ COMPREHENSIVE SCANNING MODE ═══"
+      say ""
+      say "This will perform aggressive enumeration including:"
+      say "  • Port scanning (37 common ports)"
+      say "  • Path enumeration (100+ paths)"
+      say "  • HTTP method testing"
+      say "  • Header analysis"
+      say "  • Binary artifact discovery"
+      say "  • Subdomain probing"
+      say "  • Technology fingerprinting"
+      say ""
+      say "WARNING: This is more aggressive and may be detected!"
+      say ""
+      echo "Continue? (y/N)"
+      read -r confirm
+
+      if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        tgt=$(menu_impl "Select target for comprehensive scan" "${TARGETS[@]}")
+        if [[ -n "$tgt" ]]; then
+          local comp_scan_script="$(dirname "$0")/c2-scan-comprehensive.sh"
+          if [[ ! -f "$comp_scan_script" ]]; then
+            comp_scan_script="/home/c2enum/toolkit/c2-scan-comprehensive.sh"
+          fi
+
+          if [[ -f "$comp_scan_script" ]]; then
+            say "[*] Launching comprehensive scanner..."
+            bash "$comp_scan_script" "$tgt" "$OUTDIR/comprehensive_${tgt//[^A-Za-z0-9._-]/_}"
+            say "[✓] Comprehensive scan complete!"
+            say ""
+            echo "Press Enter to continue..."
+            read -r
+          else
+            say "[✗] Comprehensive scanner not found: $comp_scan_script"
+          fi
+        fi
+      else
+        say "Cancelled."
       fi
       ;;
 
