@@ -515,6 +515,11 @@ enumerate_target(){
   local safe_base; safe_base="$OUTDIR/$(echo "$T" | sed 's/[^A-Za-z0-9._-]/_/g')"
   local enum_start=$(date +%s)
 
+  # Save URL context for orchestrator and analyzers
+  echo "http://$T" > "$OUTDIR/.target_url"
+  echo "$T" > "$OUTDIR/.target_domain"
+  log "Saved URL context for target: $T"
+
   say ""
   say "╔════════════════════════════════════════════════════════════════╗"
   say "║ Enumerating: $T"

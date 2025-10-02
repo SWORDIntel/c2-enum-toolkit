@@ -647,6 +647,11 @@ main() {
 
     # Extract host for various tests
     local host protocol base_url
+
+    # Save URL context for orchestrator and other tools
+    echo "http://$target" > "$outdir/.target_url"
+    echo "$target" > "$outdir/.target_domain"
+    log "Saved URL context: http://$target"
     if [[ "$target" == *:* ]]; then
         host="${target%:*}"
     else

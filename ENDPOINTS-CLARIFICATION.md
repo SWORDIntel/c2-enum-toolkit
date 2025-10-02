@@ -43,39 +43,36 @@ local url="http://placeholder.onion"  # Would come from context
 
 **Purpose:** Temporary placeholder in code that needs URL context
 
-**Status:** ⚠️ **Known issue** (flagged in code review)
+**Status:** ✅ **RESOLVED** (implemented URL context extraction)
 
-**Impact:**
-- JS/Content/Cert analyzers need actual URLs to work
-- Binary/Image analyzers work fine (don't need URLs)
+**Impact:** ✅ None - All analyzers now work with real URLs
 
-**Workaround:**
+**Solution Implemented:**
+
+The orchestrator now has intelligent URL context extraction with **5 fallback methods**:
+
+1. **.target_url file** (saved by comprehensive scanner/TUI)
+2. **Directory name parsing** (intel_<onion>_timestamp)
+3. **HEAD file analysis** (<target>_root.head)
+4. **Sample file analysis** (*.sample filenames)
+5. **Text file scanning** (search for .onion in logs/reports)
+
+**All analyzers now work:**
 ```bash
-# These analyzers work without URLs:
-- binary-analysis.sh
-- kp14-binary (binary config extraction)
-- kp14-image (steganography extraction)
-
-# These need URLs (currently limited):
-- javascript-analysis.sh (needs target URL)
-- content-crawler.sh (needs target URL)
-- certificate-intel.sh (needs domain)
+✅ binary-analysis.sh (doesn't need URL)
+✅ kp14-binary (doesn't need URL)
+✅ kp14-image (doesn't need URL)
+✅ javascript-analysis.sh (gets URL from context) ← FIXED
+✅ content-crawler.sh (gets URL from context) ← FIXED
+✅ certificate-intel.sh (gets domain from context) ← FIXED
 ```
 
-**Resolution:**
-The orchestrator is designed for files already downloaded by comprehensive scanner. URL context can be added by:
+**Changes Made:**
+- `orchestrator.sh`: Added `get_url_context()` with 5 fallback methods
+- `c2-scan-comprehensive.sh`: Saves `.target_url` and `.target_domain`
+- `c2-enum-tui.sh`: Saves `.target_url` during enumeration
 
-```bash
-# During comprehensive scan, save target URL
-echo "$TARGET_URL" > "$OUTDIR/.target_url"
-
-# Orchestrator reads it
-if [[ -f "$TARGET_DIR/.target_url" ]]; then
-    url=$(cat "$TARGET_DIR/.target_url")
-fi
-```
-
-**Priority:** Medium (functional improvement, not security issue)
+**Priority:** ✅ **COMPLETED**
 
 ---
 

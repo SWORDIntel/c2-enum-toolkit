@@ -115,6 +115,77 @@ esac
 log "Profile '$PROFILE' selected: ${#TOOLS[@]} tools, threshold=${CONFIDENCE_THRESHOLD}%"
 log ""
 
+# ========== URL Context Extraction ==========
+
+get_url_context() {
+    local context_type="$1"  # 'url' or 'domain'
+    local url=""
+    local domain=""
+
+    # Method 1: Check for saved context file (from comprehensive scan)
+    if [[ -f "$TARGET_DIR/.target_url" ]]; then
+        url=$(cat "$TARGET_DIR/.target_url" 2>/dev/null)
+        domain=$(echo "$url" | sed 's|https\?://||; s|/.*||')
+        log "  [Context] Loaded from .target_url: $url"
+    fi
+
+    # Method 2: Extract from directory name (intel_<onion>_<timestamp>)
+    if [[ -z "$url" ]]; then
+        local dirname=$(basename "$TARGET_DIR")
+        # Pattern: intel_<onion-address>_<timestamp>
+        if [[ "$dirname" =~ intel_([a-z2-7]{16,56}\.onion[^_]*) ]]; then
+            domain="${BASH_REMATCH[1]}"
+            url="http://${domain}"
+            log "  [Context] Extracted from dirname: $url"
+        fi
+    fi
+
+    # Method 3: Check downloaded HEAD files for original URL
+    if [[ -z "$url" ]]; then
+        local head_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*_root.head" | head -1)
+        if [[ -f "$head_file" ]]; then
+            # Extract target from filename: <target>_root.head
+            local target_from_file=$(basename "$head_file" | sed 's/_root\.head$//')
+            if [[ "$target_from_file" =~ [a-z2-7]{16,56}\.onion ]]; then
+                domain="$target_from_file"
+                url="http://${domain}"
+                log "  [Context] Extracted from HEAD file: $url"
+            fi
+        fi
+    fi
+
+    # Method 4: Parse from any downloaded sample files
+    if [[ -z "$url" ]]; then
+        local sample_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*.sample" | head -1)
+        if [[ -f "$sample_file" ]]; then
+            local onion=$(basename "$sample_file" | grep -oE '[a-z2-7]{16,56}\.onion[^_]*' | head -1)
+            if [[ -n "$onion" ]]; then
+                domain="$onion"
+                url="http://${domain}"
+                log "  [Context] Extracted from sample file: $url"
+            fi
+        fi
+    fi
+
+    # Method 5: Fallback - try to find any .onion reference
+    if [[ -z "$url" ]]; then
+        local found_onion=$(find "$TARGET_DIR" -type f -name "*.txt" -o -name "*.log" 2>/dev/null | \
+            xargs grep -ohE '[a-z2-7]{16,56}\.onion(:[0-9]+)?' 2>/dev/null | head -1)
+        if [[ -n "$found_onion" ]]; then
+            domain="$found_onion"
+            url="http://${domain}"
+            log "  [Context] Found in files: $url"
+        fi
+    fi
+
+    # Return requested context type
+    if [[ "$context_type" == "domain" ]]; then
+        echo "${domain:-placeholder.onion:443}"
+    else
+        echo "${url:-http://placeholder.onion}"
+    fi
+}
+
 # ========== Tool Execution Engine ==========
 
 run_tool() {
@@ -158,23 +229,46 @@ for ep in data.get('discovered_endpoints', []):
 
         javascript-analysis)
             if [[ -f "$SCRIPT_DIR/javascript-analysis.sh" ]]; then
-                # Need URL, construct from file or use base
-                local url="http://placeholder.onion"  # Would come from context
-                bash "$SCRIPT_DIR/javascript-analysis.sh" "$url" "$output_dir" 2>&1 | tee -a "$ANALYSIS_LOG"
+                # Get URL from context
+                local url=$(get_url_context "url")
+
+                if [[ "$url" != *"placeholder"* ]]; then
+                    log "  [URL] Using: $url"
+                    bash "$SCRIPT_DIR/javascript-analysis.sh" "$url" "$output_dir" 2>&1 | tee -a "$ANALYSIS_LOG"
+                else
+                    log "  [Skip] No URL context available for JavaScript analysis"
+                fi
             fi
             ;;
 
         content-crawler)
             if [[ -f "$SCRIPT_DIR/content-crawler.sh" ]]; then
-                local url="http://placeholder.onion"
-                bash "$SCRIPT_DIR/content-crawler.sh" "$url" "$output_dir" 2 2>&1 | tee -a "$ANALYSIS_LOG"
+                local url=$(get_url_context "url")
+
+                if [[ "$url" != *"placeholder"* ]]; then
+                    log "  [URL] Using: $url"
+                    bash "$SCRIPT_DIR/content-crawler.sh" "$url" "$output_dir" 2 2>&1 | tee -a "$ANALYSIS_LOG"
+
+                    # Extract discovered endpoints from crawler
+                    if [[ -f "$output_dir/content_analysis/discovered_endpoints.txt" ]]; then
+                        cat "$output_dir/content_analysis/discovered_endpoints.txt" >> "$DISCOVERED_ENDPOINTS_FILE" 2>/dev/null || true
+                    fi
+                else
+                    log "  [Skip] No URL context available for content crawler"
+                fi
             fi
             ;;
 
         certificate-intel)
             if [[ -f "$SCRIPT_DIR/certificate-intel.sh" ]]; then
-                local domain="placeholder.onion:443"
-                bash "$SCRIPT_DIR/certificate-intel.sh" "$domain" "$output_dir" 2>&1 | tee -a "$ANALYSIS_LOG"
+                local domain=$(get_url_context "domain")
+
+                if [[ "$domain" != *"placeholder"* ]]; then
+                    log "  [Domain] Using: $domain"
+                    bash "$SCRIPT_DIR/certificate-intel.sh" "$domain" "$output_dir" 2>&1 | tee -a "$ANALYSIS_LOG"
+                else
+                    log "  [Skip] No domain context available for certificate analysis"
+                fi
             fi
             ;;
     esac
