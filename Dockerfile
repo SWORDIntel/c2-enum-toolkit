@@ -46,12 +46,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     iproute2 \
     sudo \
+    # Python for KP14 integration
+    python3 \
+    python3-pip \
+    python3-venv \
     # Optional but useful
     vim-tiny \
     openssl \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install Python dependencies for KP14
+COPY kp14/requirements.txt /tmp/kp14-requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/kp14-requirements.txt && \
+    rm /tmp/kp14-requirements.txt
 
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash c2enum && \
@@ -66,6 +75,7 @@ COPY --chown=c2enum:c2enum c2-enum-tui.sh /home/c2enum/toolkit/
 COPY --chown=c2enum:c2enum c2-scan-comprehensive.sh /home/c2enum/toolkit/
 COPY --chown=c2enum:c2enum c2-enum-cli.sh /home/c2enum/toolkit/
 COPY --chown=c2enum:c2enum analyzers/ /home/c2enum/toolkit/analyzers/
+COPY --chown=c2enum:c2enum kp14/ /home/c2enum/toolkit/kp14/
 COPY --chown=c2enum:c2enum *.md /home/c2enum/toolkit/
 
 # Make scripts executable

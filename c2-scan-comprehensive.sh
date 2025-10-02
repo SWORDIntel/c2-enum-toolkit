@@ -706,6 +706,50 @@ main() {
     log ""
     log "Generated files:"
     ls -lh "$outdir" | tail -n +2 | awk '{print "  -", $9, "("$5")"}'
+
+    # ========== KP14 AUTO-DISCOVERY ==========
+    log ""
+    log "═══════════════════════════════════════════════════════════════════"
+    log "║         KP14 AUTO-DISCOVERY (Steganography & Decryption)         ║"
+    log "═══════════════════════════════════════════════════════════════════"
+
+    # Check if KP14 integration is available
+    local kp14_script="$(dirname "$0")/analyzers/kp14-autodiscover.sh"
+    if [[ ! -f "$kp14_script" ]]; then
+        kp14_script="/home/c2enum/toolkit/analyzers/kp14-autodiscover.sh"
+    fi
+
+    if [[ -f "$kp14_script" ]]; then
+        log "Running KP14 auto-discovery on downloaded files..."
+
+        if bash "$kp14_script" "$outdir" "$outdir/kp14_discovery" 2>&1 | tee -a "$outdir/kp14.log"; then
+            log "✓ KP14 analysis complete"
+
+            # Check if endpoints were discovered
+            if [[ -f "$outdir/kp14_discovery/discovered_endpoints.txt" ]]; then
+                local discovered_count=$(wc -l < "$outdir/kp14_discovery/discovered_endpoints.txt" 2>/dev/null || echo 0)
+
+                if [[ $discovered_count -gt 0 ]]; then
+                    log ""
+                    log "⚠️  KP14 DISCOVERED $discovered_count HIDDEN C2 ENDPOINT(S)!"
+                    log ""
+                    log "Discovered endpoints:"
+                    cat "$outdir/kp14_discovery/discovered_endpoints.txt" | head -10 | sed 's/^/  → /'
+
+                    log ""
+                    log "💡 TIP: Re-run comprehensive scan on discovered endpoints:"
+                    log "  while read ep; do"
+                    log "    onion=\$(echo \"\$ep\" | awk '{print \$1}')"
+                    log "    ./c2-scan-comprehensive.sh \"\$onion\""
+                    log "  done < \"$outdir/kp14_discovery/discovered_endpoints.txt\""
+                fi
+            fi
+        else
+            log "⚠️  KP14 analysis failed (may not be critical)"
+        fi
+    else
+        log "ℹ️  KP14 auto-discovery not available (kp14-autodiscover.sh not found)"
+    fi
 }
 
 # ---------- Entry Point ----------
@@ -715,6 +759,12 @@ if [[ $# -eq 0 ]]; then
     echo "Example:"
     echo "  $0 example.onion"
     echo "  $0 example.onion:9000 /tmp/scan_results"
+    echo ""
+    echo "Features:"
+    echo "  - Comprehensive port scanning (37 ports)"
+    echo "  - Path enumeration (100+ paths)"
+    echo "  - Binary artifact discovery"
+    echo "  - KP14 auto-discovery (hidden C2 endpoints)"
     exit 1
 fi
 

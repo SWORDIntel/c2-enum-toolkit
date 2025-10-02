@@ -1059,11 +1059,79 @@ show_dashboard(){
 }
 
 advanced_menu(){
-  local items=("Port-Scanner" "Select-Target-for-Deep-Scan" "Run-All-Advanced-On-Target" "Differential-Snapshots" "Asset-Hash-Correlation" "Header-Fingerprint-Matrix" "Binary-Lineage-Analysis" "PCAP-Deep-Analysis" "Certificate-Analysis" "Back")
+  local items=("KP14-Auto-Discovery" "Port-Scanner" "Select-Target-for-Deep-Scan" "Run-All-Advanced-On-Target" "Differential-Snapshots" "Asset-Hash-Correlation" "Header-Fingerprint-Matrix" "Binary-Lineage-Analysis" "PCAP-Deep-Analysis" "Certificate-Analysis" "Back")
 
   while true; do
     local act; act=$(menu_impl "Advanced Analysis Menu" "${items[@]}")
     case "$act" in
+      "KP14-Auto-Discovery")
+        say "═══ KP14 Auto-Discovery ═══"
+        say ""
+        say "This will analyze downloaded files for hidden C2 endpoints using:"
+        say "  • Steganography extraction from images"
+        say "  • XOR/RC4 decryption of binary configs"
+        say "  • Network indicator extraction"
+        say ""
+        echo "Select source directory:"
+        echo "  1) Current OUTDIR ($OUTDIR)"
+        echo "  2) Custom directory"
+        read -r choice
+
+        local scan_dir="$OUTDIR"
+        if [[ "$choice" == "2" ]]; then
+          echo "Enter directory path:"
+          read -r scan_dir
+        fi
+
+        if [[ -d "$scan_dir" ]]; then
+          local kp14_script="$(dirname "$0")/analyzers/kp14-autodiscover.sh"
+          [[ ! -f "$kp14_script" ]] && kp14_script="/home/c2enum/toolkit/analyzers/kp14-autodiscover.sh"
+
+          if [[ -f "$kp14_script" ]]; then
+            say "[*] Running KP14 auto-discovery..."
+            bash "$kp14_script" "$scan_dir" "$scan_dir/kp14_discovery"
+
+            # Check results
+            if [[ -f "$scan_dir/kp14_discovery/discovered_endpoints.txt" ]]; then
+              local count=$(wc -l < "$scan_dir/kp14_discovery/discovered_endpoints.txt" 2>/dev/null || echo 0)
+
+              if [[ $count -gt 0 ]]; then
+                say ""
+                say "[✓] Discovered $count hidden endpoint(s)!"
+                say ""
+                cat "$scan_dir/kp14_discovery/discovered_endpoints.txt"
+                say ""
+                echo "Add discovered endpoints to target list? (y/N)"
+                read -r add_choice
+
+                if [[ "$add_choice" =~ ^[Yy]$ ]]; then
+                  while read -r line; do
+                    endpoint=$(echo "$line" | awk '{print $1}')
+                    if [[ "$endpoint" =~ \.onion ]]; then
+                      TARGETS+=("$endpoint")
+                      say "[✓] Added: $endpoint"
+                    fi
+                  done < "$scan_dir/kp14_discovery/discovered_endpoints.txt"
+
+                  say ""
+                  say "Total targets now: ${#TARGETS[@]}"
+                fi
+              else
+                say "[!] No hidden endpoints discovered"
+              fi
+            fi
+          else
+            say "[✗] KP14 auto-discovery script not found"
+          fi
+        else
+          say "[✗] Directory not found: $scan_dir"
+        fi
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        ;;
+
       "Port-Scanner")
         local tgt; tgt=$(menu_impl "Pick target for port scan" "${TARGETS[@]}")
         if [[ -n "$tgt" ]]; then

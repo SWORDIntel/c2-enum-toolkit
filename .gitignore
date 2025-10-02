@@ -1,3 +1,23 @@
 Intel outputs
 intel_*/
+
+# KP14 submodule outputs
+kp14/__pycache__/
+kp14/*.pyc
+kp14/keyplug_venv/
+kp14/analysis_results/
+kp14/advanced_decryption_results/
+kp14/detailed_analysis/
+kp14/extracted_pe/
+kp14/*.log
+
+# KP14 discovery outputs
+kp14_discovery/
+output/*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
 intel_wtxqf54djhp5pskv2lfyduub5ievxbyvlzjgjopk6hxge5umombr63ad.onion_20251002-014306
