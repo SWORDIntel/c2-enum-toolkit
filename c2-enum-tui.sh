@@ -848,7 +848,7 @@ adv_snapshots(){
   ts="$($DATE_CMD -u +%Y%m%d-%H%M%S)"; d="$SNAP_DIR/$tgt"
   mkdir -p "$d"
   for p in / /robots.txt /favicon.ico /static/docker-init.sh; do
-    curl --socks5-hostname "$SOCKS" -fsSL --max-time 30 -r 0-16383 "http://$tgt$p" -o "$d/snap_${ts}_$(echo "$p"|tr/ _).bin" 2>>"$LOG" || true
+    curl --socks5-hostname "$SOCKS" -fsSL --max-time 30 -r 0-16383 "http://$tgt$p" -o "$d/snap_${ts}_$(echo "$p"|tr '/' '_').bin" 2>>"$LOG" || true
   done
   if [[ -n "$GIT" ]]; then
     if [[ ! -d "$d/.git" ]]; then (cd "$d" && "$GIT" init -q); fi

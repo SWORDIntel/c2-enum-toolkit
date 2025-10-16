@@ -179,38 +179,30 @@ Two genuine C2 endpoints included for analysis:
 
 ```
 c2-enum-toolkit/
-├── c2-enum-tui.sh                  Main TUI (1,600+ lines)
-├── c2-scan-comprehensive.sh        Aggressive scanner (800+ lines)
-├── c2-enum-cli.sh                  JSON/CSV API (340 lines)
+├── c2-enum-tui.sh                  # Main TUI (1,600+ lines)
+├── c2-scan-comprehensive.sh        # Aggressive scanner (800+ lines)
+├── c2-enum-cli.sh                  # JSON/CSV API (340 lines)
 │
-├── analyzers/                      Specialized modules
-│   ├── binary-analysis.sh          Advanced binary analysis
-│   ├── javascript-analysis.sh      JS endpoint extraction
-│   ├── certificate-intel.sh        TLS intelligence
-│   ├── content-crawler.sh          Recursive enumeration
-│   ├── kp14-bridge.py              Steganography integration
-│   ├── kp14-autodiscover.sh        Auto-discovery engine
-│   ├── hw-detect.sh                Hardware detection
-│   ├── openvino-accelerator.py     NPU/GPU manager
-│   └── orchestrator.sh             Intelligent chaining
+├── docs/                           # Documentation guides
+│   ├── COMPREHENSIVE-SCANNING.md   # Deep scan features
+│   ├── DOCKER.md                   # Docker deployment guide
+│   ├── KP14-INTEGRATION.md         # Steganography & decryption
+│   ├── OPENVINO-ACCELERATION.md    # NPU/GPU acceleration
+│   └── ... (10+ more guides)
 │
-├── kp14/                           KP14 submodule (steganography)
+├── analyzers/                      # Specialized modules
+│   ├── binary-analysis.sh          # Advanced binary analysis
+│   ├── javascript-analysis.sh      # JS endpoint extraction
+│   ├── ... (7 more)
 │
-├── docker/                         Docker configuration
-│   ├── Dockerfile                  Production container
-│   ├── docker-compose.yml          Orchestration
-│   ├── entrypoint.sh              Automatic Tor startup
-│   └── torrc                       Tor configuration
+├── kp14/                           # KP14 submodule (steganography)
 │
-└── Documentation (17 guides)
-    ├── README.md                   This file
-    ├── QUICKSTART.md               User guide
-    ├── DOCKER.md                   Container deployment
-    ├── KP14-INTEGRATION.md         Steganography guide
-    ├── OPENVINO-ACCELERATION.md    Hardware acceleration
-    ├── COMPREHENSIVE-SCANNING.md   Aggressive mode
-    ├── CODE-REVIEW*.md             Security reviews
-    └── ... (10 more guides)
+├── docker/                         # Docker configuration
+│   ├── Dockerfile                  # Production container
+│   ├── docker-compose.yml          # Orchestration
+│   └── ...
+│
+└── README.md                       # This file
 ```
 
 ---
@@ -333,32 +325,25 @@ done
 
 ## 📚 **Documentation Guide**
 
-### Getting Started (Read First)
-1. **README.md** ← You are here
-2. **QUICKSTART.md** - Step-by-step workflows
-3. **DOCKER.md** - Container deployment
+All detailed documentation has been moved to the `docs/` directory.
+
+### Getting Started
+- **README.md** (This file) - Overview, key features, and quick start.
+- **`docs/DOCKER.md`** - Comprehensive guide for Docker deployment, configuration, and troubleshooting.
 
 ### Core Features
-4. **COMPREHENSIVE-SCANNING.md** - Aggressive mode (37 ports, 100+ paths)
-5. **PORT-SCANNING.md** - Port scanning features
-6. **SCANNING-COMPARISON.md** - Standard vs Comprehensive
+- **`docs/COMPREHENSIVE-SCANNING.md`** - In-depth details on the aggressive scanning mode.
+- **`docs/PORT-SCANNING.md`** - Information on port scanning capabilities.
+- **`docs/SCANNING-COMPARISON.md`** - A comparison of standard vs. comprehensive scanning.
 
 ### Advanced Features
-7. **KP14-INTEGRATION.md** - Steganography & auto-discovery
-8. **OPENVINO-ACCELERATION.md** - NPU/GPU hardware acceleration
-9. **PHASE1-IMPROVEMENTS.md** - Intelligence analysis modules
-
-### Docker & Deployment
-10. **DOCKER-BENEFITS.md** - Why Docker? (ROI analysis)
-11. **GIT-GUIDE.md** - Git workflows
+- **`docs/KP14-INTEGRATION.md`** - Guide to the KP14 steganography and decryption module.
+- **`docs/OPENVINO-ACCELERATION.md`** - Details on hardware acceleration with OpenVINO.
 
 ### Technical & Reference
-12. **ENHANCEMENTS.md** - Technical implementation details
-13. **CODE-REVIEW.md** - Security audit (92/100)
-14. **CODE-REVIEW-OPENVINO.md** - Hardware acceleration review (93/100)
-15. **CODE-REVIEW-URL-FIX.md** - URL context review (92/100)
-16. **CHANGELOG.md** - Version history
-17. **ENDPOINTS-CLARIFICATION.md** - Genuine vs placeholder addresses
+- **`docs/ENHANCEMENTS.md`** - Technical implementation details.
+- **`docs/CODE-REVIEW.md`** - Security audit and code review information.
+- **CHANGELOG.md** - Project version history.
 
 ---
 
@@ -533,6 +518,8 @@ docker-compose down
 # View logs
 docker-compose logs -f
 ```
+
+**For a comprehensive guide to Docker deployment, see `docs/DOCKER.md`.**
 
 ---
 

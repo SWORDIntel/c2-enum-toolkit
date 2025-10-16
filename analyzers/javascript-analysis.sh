@@ -113,7 +113,7 @@ for js_file in "$OUTDIR"/js_analysis/*.js; do
     echo "File: $(basename "$js_file")"
 
     # Check for common obfuscation patterns
-    local obfuscation_score=0
+    obfuscation_score=0
 
     # Eval usage
     if grep -qE "eval\(|Function\(|setTimeout\(.*,|setInterval\(" "$js_file" 2>/dev/null; then
@@ -128,7 +128,7 @@ for js_file in "$OUTDIR"/js_analysis/*.js; do
     fi
 
     # Minification
-    local avg_line_length=$(awk '{total += length; count++} END {print int(total/count)}' "$js_file" 2>/dev/null || echo 0)
+    avg_line_length=$(awk '{total += length; count++} END {print int(total/count)}' "$js_file" 2>/dev/null || echo 0)
     if [[ $avg_line_length -gt 200 ]]; then
         echo "  ℹ️  Minified (avg line length: $avg_line_length chars)"
         ((obfuscation_score+=10))
