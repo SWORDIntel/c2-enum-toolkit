@@ -344,4 +344,25 @@ log "Full report: $OUTDIR/"
 log "Endpoints: $DISCOVERED_ENDPOINTS_FILE"
 log "Log: $ANALYSIS_LOG"
 
+# ========== Final Enrichment Steps ==========
+log ""
+log "Step 3: Running Final Enrichment Analyzers..."
+
+if [[ -f "$SCRIPT_DIR/visual-c2-mapper.sh" ]]; then
+    bash "$SCRIPT_DIR/visual-c2-mapper.sh" "$TARGET_DIR" "$OUTDIR/c2_map.dot"
+    log "C2 map generated: $OUTDIR/c2_map.png"
+fi
+
+if [[ -f "$SCRIPT_DIR/darkweb-monitor.sh" ]]; then
+    bash "$SCRIPT_DIR/darkweb-monitor.sh" "$TARGET_DIR" "$OUTDIR/darkweb_monitoring_report.md"
+    log "Dark web monitoring report generated: $OUTDIR/darkweb_monitoring_report.md"
+fi
+
+if [[ -f "$SCRIPT_DIR/threat-actor-profiler.sh" ]]; then
+    bash "$SCRIPT_DIR/threat-actor-profiler.sh" "$TARGET_DIR" "$OUTDIR/threat_actor_dossier.md"
+    log "Threat actor dossier generated: $OUTDIR/threat_actor_dossier.md"
+fi
+
+log ""
+log "Orchestration complete."
 exit 0
