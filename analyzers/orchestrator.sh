@@ -290,20 +290,24 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
     # Run tools based on profile
     if [[ ${#BINARIES[@]} -gt 0 ]]; then
         for tool in "binary-analysis" "kp14-binary"; do
-            if [[ " ${TOOLS[@]} " =~ " $tool " ]]; then
-                for binary in "${BINARIES[@]}"; do
-                    run_tool "$tool" "$binary"
-                done
-            fi
+            for t in "${TOOLS[@]}"; do
+                if [[ "$t" == "$tool" ]]; then
+                    for binary in "${BINARIES[@]}"; do
+                        run_tool "$tool" "$binary"
+                    done
+                fi
+            done
         done
     fi
 
     if [[ ${#IMAGES[@]} -gt 0 ]]; then
-        if [[ " ${TOOLS[@]} " =~ " kp14-image " ]]; then
-            for image in "${IMAGES[@]}"; do
-                run_tool "kp14-image" "$image"
-            done
-        fi
+        for t in "${TOOLS[@]}"; do
+            if [[ "$t" == "kp14-image" ]]; then
+                for image in "${IMAGES[@]}"; do
+                    run_tool "kp14-image" "$image"
+                done
+            fi
+        done
     fi
 
     # Check if new endpoints were discovered
