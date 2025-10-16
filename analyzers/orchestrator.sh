@@ -18,7 +18,8 @@ ANALYSIS_LOG="$OUTDIR/orchestrator.log"
 
 # ========== Configuration ==========
 log() {
-    local msg="[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
+    local msg
+    msg="[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
     echo "$msg" | tee -a "$ANALYSIS_LOG"
 }
 
@@ -40,30 +41,6 @@ log ""
 
 # ========== Analysis DAG Definition ==========
 
-# Define tool dependencies and chaining rules
-declare -A TOOL_DEPS
-declare -A TOOL_OUTPUTS
-declare -A TOOL_CONFIDENCE
-
-# Tool dependency graph
-TOOL_DEPS=(
-    ["binary-analysis"]=""  # No deps, runs on binaries
-    ["kp14-binary"]="binary-analysis"  # Needs binary analysis first
-    ["javascript-analysis"]=""  # No deps, runs on URLs
-    ["kp14-image"]=""  # No deps, runs on images
-    ["certificate-intel"]=""  # No deps, runs on domains
-    ["content-crawler"]="javascript-analysis"  # Better with JS endpoints
-)
-
-# Tool output types
-TOOL_OUTPUTS=(
-    ["binary-analysis"]="strings,hashes,threat_score"
-    ["kp14-binary"]="endpoints,configs"
-    ["kp14-image"]="endpoints,payloads"
-    ["javascript-analysis"]="endpoints,apis"
-    ["certificate-intel"]="fingerprints,security_score"
-    ["content-crawler"]="endpoints,links"
-)
 
 # ========== File Discovery ==========
 log "Step 1: Discovering files to analyze..."
@@ -131,7 +108,8 @@ get_url_context() {
 
     # Method 2: Extract from directory name (intel_<onion>_<timestamp>)
     if [[ -z "$url" ]]; then
-        local dirname=$(basename "$TARGET_DIR")
+        local dirname
+        dirname=$(basename "$TARGET_DIR")
         # Pattern: intel_<onion-address>_<timestamp>
         if [[ "$dirname" =~ intel_([a-z2-7]{16,56}\.onion[^_]*) ]]; then
             domain="${BASH_REMATCH[1]}"
@@ -142,10 +120,12 @@ get_url_context() {
 
     # Method 3: Check downloaded HEAD files for original URL
     if [[ -z "$url" ]]; then
-        local head_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*_root.head" | head -1)
+        local head_file
+        head_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*_root.head" | head -1)
         if [[ -f "$head_file" ]]; then
             # Extract target from filename: <target>_root.head
-            local target_from_file=$(basename "$head_file" | sed 's/_root\.head$//')
+            local target_from_file
+            target_from_file=$(basename "$head_file" | sed 's/_root\.head$//')
             if [[ "$target_from_file" =~ [a-z2-7]{16,56}\.onion ]]; then
                 domain="$target_from_file"
                 url="http://${domain}"
@@ -156,9 +136,11 @@ get_url_context() {
 
     # Method 4: Parse from any downloaded sample files
     if [[ -z "$url" ]]; then
-        local sample_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*.sample" | head -1)
+        local sample_file
+        sample_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*.sample" | head -1)
         if [[ -f "$sample_file" ]]; then
-            local onion=$(basename "$sample_file" | grep -oE '[a-z2-7]{16,56}\.onion[^_]*' | head -1)
+            local onion
+            onion=$(basename "$sample_file" | grep -oE '[a-z2-7]{16,56}\.onion[^_]*' | head -1)
             if [[ -n "$onion" ]]; then
                 domain="$onion"
                 url="http://${domain}"
@@ -169,8 +151,9 @@ get_url_context() {
 
     # Method 5: Fallback - try to find any .onion reference
     if [[ -z "$url" ]]; then
-        local found_onion=$(find "$TARGET_DIR" -type f -name "*.txt" -o -name "*.log" 2>/dev/null | \
-            xargs grep -ohE '[a-z2-7]{16,56}\.onion(:[0-9]+)?' 2>/dev/null | head -1)
+        local found_onion
+        found_onion=$(find "$TARGET_DIR" -type f \( -name "*.txt" -o -name "*.log" \) -print0 2>/dev/null | \
+            xargs -0 grep -ohE '[a-z2-7]{16,56}\.onion(:[0-9]+)?' 2>/dev/null | head -1)
         if [[ -n "$found_onion" ]]; then
             domain="$found_onion"
             url="http://${domain}"
@@ -217,7 +200,7 @@ run_tool() {
                 if [[ -f "$output_dir/$(basename "$input_file").json" ]]; then
                     python3 -c "
 import json, sys
-with open('$output_dir/$(basename \"$input_file\").json') as f:
+with open('$output_dir/$(basename \""$input_file"\").json') as f:
     data = json.load(f)
 for ep in data.get('discovered_endpoints', []):
     if ep['confidence'] >= $CONFIDENCE_THRESHOLD:
@@ -230,7 +213,8 @@ for ep in data.get('discovered_endpoints', []):
         javascript-analysis)
             if [[ -f "$SCRIPT_DIR/javascript-analysis.sh" ]]; then
                 # Get URL from context
-                local url=$(get_url_context "url")
+                local url
+                url=$(get_url_context "url")
 
                 if [[ "$url" != *"placeholder"* ]]; then
                     log "  [URL] Using: $url"
@@ -243,7 +227,8 @@ for ep in data.get('discovered_endpoints', []):
 
         content-crawler)
             if [[ -f "$SCRIPT_DIR/content-crawler.sh" ]]; then
-                local url=$(get_url_context "url")
+                local url
+                url=$(get_url_context "url")
 
                 if [[ "$url" != *"placeholder"* ]]; then
                     log "  [URL] Using: $url"
@@ -261,7 +246,8 @@ for ep in data.get('discovered_endpoints', []):
 
         certificate-intel)
             if [[ -f "$SCRIPT_DIR/certificate-intel.sh" ]]; then
-                local domain=$(get_url_context "domain")
+                local domain
+                domain=$(get_url_context "domain")
 
                 if [[ "$domain" != *"placeholder"* ]]; then
                     log "  [Domain] Using: $domain"
