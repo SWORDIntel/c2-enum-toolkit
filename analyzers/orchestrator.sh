@@ -74,12 +74,12 @@ case "$PROFILE" in
         CONFIDENCE_THRESHOLD=70
         ;;
     balanced)
-        TOOLS=("binary-analysis" "advanced-binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "content-crawler")
+        TOOLS=("binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "content-crawler")
         RECURSIVE=true
         CONFIDENCE_THRESHOLD=60
         ;;
     exhaustive)
-        TOOLS=("binary-analysis" "advanced-binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "certificate-intel" "content-crawler" "c2-protocol-id")
+        TOOLS=("binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "certificate-intel" "content-crawler")
         RECURSIVE=true
         CONFIDENCE_THRESHOLD=50
         ;;
@@ -187,12 +187,6 @@ run_tool() {
             fi
             ;;
 
-        advanced-binary-analysis)
-            if [[ -f "$SCRIPT_DIR/advanced-binary-analysis.sh" ]]; then
-                bash "$SCRIPT_DIR/advanced-binary-analysis.sh" "$input_file" "$output_dir"
-            fi
-            ;;
-
         kp14-binary|kp14-image)
             if [[ -f "$SCRIPT_DIR/kp14-bridge.py" ]]; then
                 local file_type="binary"
@@ -263,51 +257,9 @@ for ep in data.get('discovered_endpoints', []):
                 fi
             fi
             ;;
-
-        c2-protocol-id)
-            if [[ -f "$SCRIPT_DIR/c2-protocol-identifier.sh" ]]; then
-                local domain
-                domain=$(get_url_context "domain")
-                if [[ "$domain" != *"placeholder"* ]]; then
-                    log "  [Domain] Using: $domain for C2 Protocol ID"
-                    bash "$SCRIPT_DIR/c2-protocol-identifier.sh" "$domain" "$output_dir/c2_protocol_id_report.txt"
-                else
-                    log "  [Skip] No domain context available for C2 Protocol ID"
-                fi
-            fi
-            ;;
     esac
 
     log "[✓] Completed: $tool"
-}
-
-run_recursive_scan() {
-    local new_endpoints_count=$((CURRENT_ENDPOINT_COUNT - PREVIOUS_ENDPOINT_COUNT))
-    if [[ $new_endpoints_count -gt 0 ]]; then
-        log "Processing ${new_endpoints_count} new endpoints for recursive scan..."
-
-        # Get new endpoints
-        sort -u "$DISCOVERED_ENDPOINTS_FILE" | tail -n "$new_endpoints_count" | while read -r endpoint_line; do
-            local endpoint
-            endpoint=$(echo "$endpoint_line" | awk '{print $1}')
-            local safe_endpoint
-            safe_endpoint=$(echo "$endpoint" | tr -cd 'a-zA-Z0-9_.-')
-            local recursive_outdir="$OUTDIR/recursive_scan_${safe_endpoint}"
-
-            log "--- Starting recursive scan on $endpoint ---"
-
-            # Run comprehensive scan on the new endpoint
-            if bash "$SCRIPT_DIR/../c2-scan-comprehensive.sh" "$endpoint" "$recursive_outdir"; then
-                log "Recursive scan for $endpoint complete. Results in $recursive_outdir"
-
-                # Re-run file discovery to find new artifacts
-                while IFS= read -r -d '' file; do BINARIES+=("$file"); done < <(find "$recursive_outdir" -type f \( -name "*.bin" -o -name "*system-linux*" \) -print0 2>/dev/null)
-                while IFS= read -r -d '' file; do IMAGES+=("$file"); done < <(find "$recursive_outdir" -type f \( -name "*.jpg" -o -name "*.png" -o -name "favicon.ico" \) -print0 2>/dev/null)
-            else
-                log "ERROR: Recursive scan failed for $endpoint"
-            fi
-        done
-    fi
 }
 
 # ========== Main Analysis Loop ==========
@@ -323,7 +275,7 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
 
     # Run tools based on profile
     if [[ ${#BINARIES[@]} -gt 0 ]]; then
-        for tool in "binary-analysis" "advanced-binary-analysis" "kp14-binary"; do
+        for tool in "binary-analysis" "kp14-binary"; do
             for t in "${TOOLS[@]}"; do
                 if [[ "$t" == "$tool" ]]; then
                     for binary in "${BINARIES[@]}"; do
@@ -344,13 +296,6 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
         done
     fi
 
-    # Run C2 Protocol ID if in profile
-    for t in "${TOOLS[@]}"; do
-        if [[ "$t" == "c2-protocol-id" ]]; then
-            run_tool "c2-protocol-id" "" # No specific input file needed
-        fi
-    done
-
     # Check if new endpoints were discovered
     CURRENT_ENDPOINT_COUNT=$(sort -u "$DISCOVERED_ENDPOINTS_FILE" | wc -l)
 
@@ -363,13 +308,8 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
     # Convergence check
     if [[ $CURRENT_ENDPOINT_COUNT -eq $PREVIOUS_ENDPOINT_COUNT ]]; then
         log ""
-        log "[✓] Convergence reached - no new endpoints discovered in this pass."
+        log "[✓] Convergence reached - no new endpoints discovered"
         break
-    fi
-
-    # --- Recursive Scan ---
-    if $RECURSIVE; then
-        run_recursive_scan
     fi
 
     PREVIOUS_ENDPOINT_COUNT=$CURRENT_ENDPOINT_COUNT
@@ -404,16 +344,4 @@ log "Full report: $OUTDIR/"
 log "Endpoints: $DISCOVERED_ENDPOINTS_FILE"
 log "Log: $ANALYSIS_LOG"
 
-# ========== Final Enrichment Step ==========
-log ""
-log "Step 3: Running Threat Intelligence Correlation..."
-if [[ -f "$SCRIPT_DIR/threat-intel-correlator.sh" ]]; then
-    bash "$SCRIPT_DIR/threat-intel-correlator.sh" "$TARGET_DIR" "$OUTDIR/threat_intel_report.md"
-    log "Threat intelligence report generated: $OUTDIR/threat_intel_report.md"
-else
-    log "Threat intelligence correlator not found, skipping."
-fi
-
-log ""
-log "Orchestration complete."
 exit 0

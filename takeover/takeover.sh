@@ -138,19 +138,27 @@ echo "    - To extract: tar -xzf $PACKAGE_NAME"
 echo ""
 echo "Please handle this data with extreme care and according to legal and ethical guidelines."
 
+# 6. Finalization
+echo "--- Takeover Process Complete ---"
+log_action "$LOG_FILE" "$OPERATOR_ID" "TAKEOVER_COMPLETE" "Process finished. Handover package is ready."
+
+# Move the log file to the parent directory before cleanup
+mv "$LOG_FILE" .
+
 # Clean up the temporary directory
 rm -rf "$TAKEOVER_DIR"
-log_action "$LOG_FILE" "$OPERATOR_ID" "CLEANUP" "Removed temporary takeover directory: $TAKEOVER_DIR"
 
-# Move the log file into the final directory to be included with the package
-# This is a bit of a hack, but it ensures the log of the cleanup is also stored.
-# A better approach would be to log to a separate, persistent location.
-# For now, we will just create a final package with the log.
+# Create final package directory and move artifacts
 FINAL_DIR="final_package_${TARGET_DOMAIN}_${TIMESTAMP}"
 mkdir "$FINAL_DIR"
 mv "$PACKAGE_NAME" "$FINAL_DIR/"
-mv "$LOG_FILE" "$FINAL_DIR/"
+mv "$(basename "$LOG_FILE")" "$FINAL_DIR/"
 
-echo "Final package and log stored in: $FINAL_DIR"
+
+echo ""
+echo "✅ Handover package created: $FINAL_DIR/$PACKAGE_NAME"
+echo "✅ Evidence log: $FINAL_DIR/$(basename "$LOG_FILE")"
+echo ""
+echo "Please handle this data with extreme care and according to legal and ethical guidelines."
 
 exit 0

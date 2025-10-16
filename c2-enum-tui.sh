@@ -469,8 +469,8 @@ pcap_stats(){
   say "File: $PCAP_FILE"
 
   local filesize
-  filesize=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null)
-  say "Size: ${filesize:-unknown} bytes"
+      filesize=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "unknown")
+      say "Size: $filesize bytes"
 
   if [[ -n "$TSHARK" ]]; then
     say ""
@@ -887,7 +887,7 @@ adv_header_matrix(){
   echo >> "$out"
   echo "=== Error Fingerprints ===" >> "$out"
   local p
-  for p in /nope /admin/../admin '/api/..\\\'; do
+  for p in /nope /admin/../admin '/api/..\\\\'; do
     curl --socks5-hostname "$SOCKS" -sS "http://$tgt$p" -o "$ADV_DIR/resp.bin" -w 'code=%{http_code} size=%{size_download}\n' >> "$out"
     if [[ -n "$XXD" && -f "$ADV_DIR/resp.bin" ]]; then "$XXD" -l 64 -g1 "$ADV_DIR/resp.bin" >> "$out"; fi
     echo >> "$out"
