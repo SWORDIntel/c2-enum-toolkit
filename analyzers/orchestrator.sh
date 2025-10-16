@@ -18,7 +18,8 @@ ANALYSIS_LOG="$OUTDIR/orchestrator.log"
 
 # ========== Configuration ==========
 log() {
-    local msg="[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
+    local msg
+    msg="[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] $*"
     echo "$msg" | tee -a "$ANALYSIS_LOG"
 }
 
@@ -40,30 +41,6 @@ log ""
 
 # ========== Analysis DAG Definition ==========
 
-# Define tool dependencies and chaining rules
-declare -A TOOL_DEPS
-declare -A TOOL_OUTPUTS
-declare -A TOOL_CONFIDENCE
-
-# Tool dependency graph
-TOOL_DEPS=(
-    ["binary-analysis"]=""  # No deps, runs on binaries
-    ["kp14-binary"]="binary-analysis"  # Needs binary analysis first
-    ["javascript-analysis"]=""  # No deps, runs on URLs
-    ["kp14-image"]=""  # No deps, runs on images
-    ["certificate-intel"]=""  # No deps, runs on domains
-    ["content-crawler"]="javascript-analysis"  # Better with JS endpoints
-)
-
-# Tool output types
-TOOL_OUTPUTS=(
-    ["binary-analysis"]="strings,hashes,threat_score"
-    ["kp14-binary"]="endpoints,configs"
-    ["kp14-image"]="endpoints,payloads"
-    ["javascript-analysis"]="endpoints,apis"
-    ["certificate-intel"]="fingerprints,security_score"
-    ["content-crawler"]="endpoints,links"
-)
 
 # ========== File Discovery ==========
 log "Step 1: Discovering files to analyze..."
@@ -97,12 +74,12 @@ case "$PROFILE" in
         CONFIDENCE_THRESHOLD=70
         ;;
     balanced)
-        TOOLS=("binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "content-crawler")
+        TOOLS=("binary-analysis" "advanced-binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "content-crawler")
         RECURSIVE=true
         CONFIDENCE_THRESHOLD=60
         ;;
     exhaustive)
-        TOOLS=("binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "certificate-intel" "content-crawler")
+        TOOLS=("binary-analysis" "advanced-binary-analysis" "kp14-binary" "kp14-image" "javascript-analysis" "certificate-intel" "content-crawler" "c2-protocol-id")
         RECURSIVE=true
         CONFIDENCE_THRESHOLD=50
         ;;
@@ -131,7 +108,8 @@ get_url_context() {
 
     # Method 2: Extract from directory name (intel_<onion>_<timestamp>)
     if [[ -z "$url" ]]; then
-        local dirname=$(basename "$TARGET_DIR")
+        local dirname
+        dirname=$(basename "$TARGET_DIR")
         # Pattern: intel_<onion-address>_<timestamp>
         if [[ "$dirname" =~ intel_([a-z2-7]{16,56}\.onion[^_]*) ]]; then
             domain="${BASH_REMATCH[1]}"
@@ -142,10 +120,12 @@ get_url_context() {
 
     # Method 3: Check downloaded HEAD files for original URL
     if [[ -z "$url" ]]; then
-        local head_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*_root.head" | head -1)
+        local head_file
+        head_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*_root.head" | head -1)
         if [[ -f "$head_file" ]]; then
             # Extract target from filename: <target>_root.head
-            local target_from_file=$(basename "$head_file" | sed 's/_root\.head$//')
+            local target_from_file
+            target_from_file=$(basename "$head_file" | sed 's/_root\.head$//')
             if [[ "$target_from_file" =~ [a-z2-7]{16,56}\.onion ]]; then
                 domain="$target_from_file"
                 url="http://${domain}"
@@ -156,9 +136,11 @@ get_url_context() {
 
     # Method 4: Parse from any downloaded sample files
     if [[ -z "$url" ]]; then
-        local sample_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*.sample" | head -1)
+        local sample_file
+        sample_file=$(find "$TARGET_DIR" -maxdepth 1 -name "*.sample" | head -1)
         if [[ -f "$sample_file" ]]; then
-            local onion=$(basename "$sample_file" | grep -oE '[a-z2-7]{16,56}\.onion[^_]*' | head -1)
+            local onion
+            onion=$(basename "$sample_file" | grep -oE '[a-z2-7]{16,56}\.onion[^_]*' | head -1)
             if [[ -n "$onion" ]]; then
                 domain="$onion"
                 url="http://${domain}"
@@ -169,8 +151,9 @@ get_url_context() {
 
     # Method 5: Fallback - try to find any .onion reference
     if [[ -z "$url" ]]; then
-        local found_onion=$(find "$TARGET_DIR" -type f -name "*.txt" -o -name "*.log" 2>/dev/null | \
-            xargs grep -ohE '[a-z2-7]{16,56}\.onion(:[0-9]+)?' 2>/dev/null | head -1)
+        local found_onion
+        found_onion=$(find "$TARGET_DIR" -type f \( -name "*.txt" -o -name "*.log" \) -print0 2>/dev/null | \
+            xargs -0 grep -ohE '[a-z2-7]{16,56}\.onion(:[0-9]+)?' 2>/dev/null | head -1)
         if [[ -n "$found_onion" ]]; then
             domain="$found_onion"
             url="http://${domain}"
@@ -204,6 +187,12 @@ run_tool() {
             fi
             ;;
 
+        advanced-binary-analysis)
+            if [[ -f "$SCRIPT_DIR/advanced-binary-analysis.sh" ]]; then
+                bash "$SCRIPT_DIR/advanced-binary-analysis.sh" "$input_file" "$output_dir"
+            fi
+            ;;
+
         kp14-binary|kp14-image)
             if [[ -f "$SCRIPT_DIR/kp14-bridge.py" ]]; then
                 local file_type="binary"
@@ -217,7 +206,7 @@ run_tool() {
                 if [[ -f "$output_dir/$(basename "$input_file").json" ]]; then
                     python3 -c "
 import json, sys
-with open('$output_dir/$(basename \"$input_file\").json') as f:
+with open('$output_dir/$(basename \""$input_file"\").json') as f:
     data = json.load(f)
 for ep in data.get('discovered_endpoints', []):
     if ep['confidence'] >= $CONFIDENCE_THRESHOLD:
@@ -230,7 +219,8 @@ for ep in data.get('discovered_endpoints', []):
         javascript-analysis)
             if [[ -f "$SCRIPT_DIR/javascript-analysis.sh" ]]; then
                 # Get URL from context
-                local url=$(get_url_context "url")
+                local url
+                url=$(get_url_context "url")
 
                 if [[ "$url" != *"placeholder"* ]]; then
                     log "  [URL] Using: $url"
@@ -243,7 +233,8 @@ for ep in data.get('discovered_endpoints', []):
 
         content-crawler)
             if [[ -f "$SCRIPT_DIR/content-crawler.sh" ]]; then
-                local url=$(get_url_context "url")
+                local url
+                url=$(get_url_context "url")
 
                 if [[ "$url" != *"placeholder"* ]]; then
                     log "  [URL] Using: $url"
@@ -261,7 +252,8 @@ for ep in data.get('discovered_endpoints', []):
 
         certificate-intel)
             if [[ -f "$SCRIPT_DIR/certificate-intel.sh" ]]; then
-                local domain=$(get_url_context "domain")
+                local domain
+                domain=$(get_url_context "domain")
 
                 if [[ "$domain" != *"placeholder"* ]]; then
                     log "  [Domain] Using: $domain"
@@ -271,9 +263,51 @@ for ep in data.get('discovered_endpoints', []):
                 fi
             fi
             ;;
+
+        c2-protocol-id)
+            if [[ -f "$SCRIPT_DIR/c2-protocol-identifier.sh" ]]; then
+                local domain
+                domain=$(get_url_context "domain")
+                if [[ "$domain" != *"placeholder"* ]]; then
+                    log "  [Domain] Using: $domain for C2 Protocol ID"
+                    bash "$SCRIPT_DIR/c2-protocol-identifier.sh" "$domain" "$output_dir/c2_protocol_id_report.txt"
+                else
+                    log "  [Skip] No domain context available for C2 Protocol ID"
+                fi
+            fi
+            ;;
     esac
 
     log "[✓] Completed: $tool"
+}
+
+run_recursive_scan() {
+    local new_endpoints_count=$((CURRENT_ENDPOINT_COUNT - PREVIOUS_ENDPOINT_COUNT))
+    if [[ $new_endpoints_count -gt 0 ]]; then
+        log "Processing ${new_endpoints_count} new endpoints for recursive scan..."
+
+        # Get new endpoints
+        sort -u "$DISCOVERED_ENDPOINTS_FILE" | tail -n "$new_endpoints_count" | while read -r endpoint_line; do
+            local endpoint
+            endpoint=$(echo "$endpoint_line" | awk '{print $1}')
+            local safe_endpoint
+            safe_endpoint=$(echo "$endpoint" | tr -cd 'a-zA-Z0-9_.-')
+            local recursive_outdir="$OUTDIR/recursive_scan_${safe_endpoint}"
+
+            log "--- Starting recursive scan on $endpoint ---"
+
+            # Run comprehensive scan on the new endpoint
+            if bash "$SCRIPT_DIR/../c2-scan-comprehensive.sh" "$endpoint" "$recursive_outdir"; then
+                log "Recursive scan for $endpoint complete. Results in $recursive_outdir"
+
+                # Re-run file discovery to find new artifacts
+                while IFS= read -r -d '' file; do BINARIES+=("$file"); done < <(find "$recursive_outdir" -type f \( -name "*.bin" -o -name "*system-linux*" \) -print0 2>/dev/null)
+                while IFS= read -r -d '' file; do IMAGES+=("$file"); done < <(find "$recursive_outdir" -type f \( -name "*.jpg" -o -name "*.png" -o -name "favicon.ico" \) -print0 2>/dev/null)
+            else
+                log "ERROR: Recursive scan failed for $endpoint"
+            fi
+        done
+    fi
 }
 
 # ========== Main Analysis Loop ==========
@@ -289,7 +323,7 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
 
     # Run tools based on profile
     if [[ ${#BINARIES[@]} -gt 0 ]]; then
-        for tool in "binary-analysis" "kp14-binary"; do
+        for tool in "binary-analysis" "advanced-binary-analysis" "kp14-binary"; do
             for t in "${TOOLS[@]}"; do
                 if [[ "$t" == "$tool" ]]; then
                     for binary in "${BINARIES[@]}"; do
@@ -310,6 +344,13 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
         done
     fi
 
+    # Run C2 Protocol ID if in profile
+    for t in "${TOOLS[@]}"; do
+        if [[ "$t" == "c2-protocol-id" ]]; then
+            run_tool "c2-protocol-id" "" # No specific input file needed
+        fi
+    done
+
     # Check if new endpoints were discovered
     CURRENT_ENDPOINT_COUNT=$(sort -u "$DISCOVERED_ENDPOINTS_FILE" | wc -l)
 
@@ -322,8 +363,13 @@ while [[ $ITERATION -lt $MAX_DEPTH ]]; do
     # Convergence check
     if [[ $CURRENT_ENDPOINT_COUNT -eq $PREVIOUS_ENDPOINT_COUNT ]]; then
         log ""
-        log "[✓] Convergence reached - no new endpoints discovered"
+        log "[✓] Convergence reached - no new endpoints discovered in this pass."
         break
+    fi
+
+    # --- Recursive Scan ---
+    if $RECURSIVE; then
+        run_recursive_scan
     fi
 
     PREVIOUS_ENDPOINT_COUNT=$CURRENT_ENDPOINT_COUNT
@@ -358,4 +404,16 @@ log "Full report: $OUTDIR/"
 log "Endpoints: $DISCOVERED_ENDPOINTS_FILE"
 log "Log: $ANALYSIS_LOG"
 
+# ========== Final Enrichment Step ==========
+log ""
+log "Step 3: Running Threat Intelligence Correlation..."
+if [[ -f "$SCRIPT_DIR/threat-intel-correlator.sh" ]]; then
+    bash "$SCRIPT_DIR/threat-intel-correlator.sh" "$TARGET_DIR" "$OUTDIR/threat_intel_report.md"
+    log "Threat intelligence report generated: $OUTDIR/threat_intel_report.md"
+else
+    log "Threat intelligence correlator not found, skipping."
+fi
+
+log ""
+log "Orchestration complete."
 exit 0

@@ -45,7 +45,7 @@ if curl --socks5-hostname "$SOCKS" -s --max-time 30 "$TARGET_URL" -o "$MAIN_PAGE
     echo "[*] Discovered JavaScript files:"
 
     grep -oE '<script[^>]+src="([^"]+)"' "$MAIN_PAGE" 2>/dev/null | \
-        sed 's/.*src="//;s/".*$//' | sort -u | while read js_path; do
+        sed 's/.*src="//;s/".*$//' | sort -u | while read -r js_path; do
 
         # Handle relative vs absolute URLs
         if [[ "$js_path" == http* ]]; then

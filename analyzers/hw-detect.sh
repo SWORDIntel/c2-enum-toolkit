@@ -13,7 +13,8 @@ detect_cpu() {
     local arch=""
 
     if [[ -f /proc/cpuinfo ]]; then
-        cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
+        cpu_model_line=$(grep "model name" /proc/cpuinfo | head -1)
+        cpu_model=${cpu_model_line#*: }
         cpu_count=$(grep -c "^processor" /proc/cpuinfo)
         arch=$(uname -m)
     fi
@@ -64,7 +65,10 @@ detect_npu() {
     fi
 
     # Check CPU model for NPU support
-    local cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2)
+    local cpu_model_line
+    cpu_model_line=$(grep "model name" /proc/cpuinfo | head -1)
+    local cpu_model
+    cpu_model=${cpu_model_line#*: }
     if echo "$cpu_model" | grep -qi "Ultra.*1[0-9][0-9]H\|Core.*AI"; then
         npu_status="likely_available"
     fi
@@ -82,7 +86,10 @@ detect_gna() {
     fi
 
     # Tiger Lake and newer may have GNA
-    local cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2)
+    local cpu_model_line
+    cpu_model_line=$(grep "model name" /proc/cpuinfo | head -1)
+    local cpu_model
+    cpu_model=${cpu_model_line#*: }
     if echo "$cpu_model" | grep -qi "11th Gen\|12th Gen\|13th Gen"; then
         gna_status="possibly_available"
     fi
@@ -115,11 +122,16 @@ print(','.join(devices))
 # ========== Main Detection ==========
 
 detect_all() {
-    local cpu_info=$(detect_cpu)
-    local gpu_info=$(detect_igpu)
-    local npu_info=$(detect_npu)
-    local gna_info=$(detect_gna)
-    local ov_info=$(detect_openvino)
+    local cpu_info
+    cpu_info=$(detect_cpu)
+    local gpu_info
+    gpu_info=$(detect_igpu)
+    local npu_info
+    npu_info=$(detect_npu)
+    local gna_info
+    gna_info=$(detect_gna)
+    local ov_info
+    ov_info=$(detect_openvino)
 
     case "$OUTPUT_FORMAT" in
         json)
@@ -202,9 +214,12 @@ EOF
 }
 
 get_recommended_device() {
-    local npu_info=$(detect_npu)
-    local gpu_info=$(detect_igpu)
-    local ov_info=$(detect_openvino)
+    local npu_info
+    npu_info=$(detect_npu)
+    local gpu_info
+    gpu_info=$(detect_igpu)
+    local ov_info
+    ov_info=$(detect_openvino)
 
     IFS=':' read -r _ _ npu_status <<< "$npu_info"
     IFS=':' read -r _ _ _ gpu_status <<< "$gpu_info"

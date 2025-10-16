@@ -77,7 +77,7 @@ echo "[*] Extracting links from HTML..."
 
 # Extract href links
 grep -oE 'href="([^"]+)"' "$HTML_FILE" 2>/dev/null | \
-    sed 's/href="//;s/"$//' | sort -u | while read link; do
+    sed 's/href="//;s/"$//' | sort -u | while read -r link; do
 
     # Categorize link
     if [[ "$link" == http* ]]; then
@@ -221,7 +221,7 @@ if [[ $MAX_DEPTH -gt 0 ]]; then
             if curl --socks5-hostname "$SOCKS" -s --max-time 15 "$url" -o "$TMP_PAGE" 2>/dev/null; then
                 # Extract new links
                 grep -oE 'href="(/[^"]+)"' "$TMP_PAGE" 2>/dev/null | \
-                    sed 's/href="//;s/"$//' | while read path; do
+                    sed 's/href="//;s/"$//' | while read -r path; do
 
                     # Build full URL
                     new_url="${TARGET_URL%/}${path}"

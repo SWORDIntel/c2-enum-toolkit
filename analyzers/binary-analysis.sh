@@ -121,12 +121,12 @@ echo "[*] Searching for crypto algorithm constants:"
 
 if command -v strings >/dev/null 2>&1 && command -v xxd >/dev/null 2>&1; then
     # Common crypto constants (hex patterns)
-    xxd -p "$BINARY" 2>/dev/null | tr -d '\n' | grep -oE "(67452301|efcdab89|98badcfe|10325476|c3d2e1f0)" | head -5 | while read const; do
+    xxd -p "$BINARY" 2>/dev/null | tr -d '\n' | grep -oE "(67452301|efcdab89|98badcfe|10325476|c3d2e1f0)" | head -5 | while read -r const; do
         echo "  ⚠️  MD5/SHA1 constant detected: 0x$const"
     done || echo "  (no MD5/SHA1 constants)"
 
     # AES S-box constants
-    xxd -p "$BINARY" 2>/dev/null | tr -d '\n' | grep -oE "637c777bf26b6fc5" | head -1 | while read const; do
+    xxd -p "$BINARY" 2>/dev/null | tr -d '\n' | grep -oE "637c777bf26b6fc5" | head -1 | while read -r const; do
         echo "  ⚠️  AES S-box constant detected: 0x$const"
     done || true
 
@@ -280,7 +280,7 @@ if command -v strings >/dev/null 2>&1; then
     echo "  strings:"
 
     # Extract unique strings for signatures
-    strings "$BINARY" 2>/dev/null | grep -E "^[A-Za-z0-9/_.-]{10,60}$" | sort -u | head -15 | nl -w1 -s' ' | while read n str; do
+    strings "$BINARY" 2>/dev/null | grep -E "^[A-Za-z0-9/_.-]{10,60}$" | sort -u | head -15 | nl -w1 -s' ' | while read -r n str; do
         escaped=$(echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g')
         echo "    \$s${n} = \"${escaped}\" ascii"
     done
