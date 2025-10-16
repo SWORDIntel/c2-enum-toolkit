@@ -41,8 +41,6 @@ TSHARK=$(command -v tshark || true)
 XXD=$(command -v xxd || command -v hexdump || true)
 JQ=$(command -v jq || true)
 NC=$(command -v nc || command -v netcat || true)
-TIMEOUT=$(command -v timeout || command -v gtimeout || true)
-OBJDUMP=$(command -v objdump || true)
 NM=$(command -v nm || true)
 
 # ---------- Dependency validation ----------
@@ -77,7 +75,6 @@ check_dependencies(){
 }
 
 TARGETS=()
-ADD_TARGETS=()
 
 # ---------- Usage ----------
 usage() {
@@ -97,7 +94,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -o|--outdir) OUTDIR="$2"; shift 2 ;;
     --socks) SOCKS="$2"; shift 2 ;;
-    --add) IFS=',' read -r -a ADD_TARGETS <<< "$2"; shift 2 ;;
+    --add) shift 2 ;;
     --targets) IFS=',' read -r -a TARGETS <<< "$2"; shift 2 ;;
     --no-auto-enum) AUTO_ENUM=false; shift ;;
     --quiet) VERBOSE=false; shift ;;
@@ -218,7 +215,6 @@ progress(){
 
 # Parallel job manager
 MAX_JOBS=5
-JOB_COUNT=0
 wait_for_jobs(){
   local max="${1:-$MAX_JOBS}"
   while [[ $(jobs -r | wc -l) -ge $max ]]; do
@@ -229,7 +225,7 @@ wait_for_jobs(){
 # Test .onion reachability before enumeration with port checking
 test_onion_reachable(){
   local target="$1" timeout=30
-  local host port protocol
+  local host port
 
   # Parse host and port
   if [[ "$target" == *:* ]]; then
@@ -402,7 +398,7 @@ start_pcap(){
 
   case "$PCAP_TOOL" in
     tcpdump)
-      ( "$TCPDUMP" -i "$PCAP_IF" -U -s 0 -w "$PCAP_FILE" $PCAP_FILTER ) >/dev/null 2>&1 & PCAP_PID=$!
+      ( "$TCPDUMP" -i "$PCAP_IF" -U -s 0 -w "$PCAP_FILE" "$PCAP_FILTER" ) >/dev/null 2>&1 & PCAP_PID=$!
       ;;
     dumpcap)
       ( "$DUMPCAP" -i "$PCAP_IF" -s 0 -f "$PCAP_FILTER" -w "$PCAP_FILE" ) >/dev/null 2>&1 & PCAP_PID=$!
@@ -472,8 +468,9 @@ pcap_stats(){
   say "=== PCAP Statistics ==="
   say "File: $PCAP_FILE"
 
-  local filesize=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "unknown")
-  say "Size: $filesize bytes"
+  local filesize
+  filesize=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null)
+  say "Size: ${filesize:-unknown} bytes"
 
   if [[ -n "$TSHARK" ]]; then
     say ""
@@ -512,8 +509,11 @@ COMMON_PATHS=(
 
 enumerate_target(){
   local T="$1"
-  local safe_base; safe_base="$OUTDIR/$(echo "$T" | sed 's/[^A-Za-z0-9._-]/_/g')"
-  local enum_start=$(date +%s)
+  local safe_base
+  safe_base="${T//[^A-Za-z0-9._-]/_}"
+  safe_base="$OUTDIR/$safe_base"
+  local enum_start
+  enum_start=$(date +%s)
 
   # Save URL context for orchestrator and analyzers
   echo "http://$T" > "$OUTDIR/.target_url"
@@ -566,14 +566,13 @@ enumerate_target(){
   fi
 
   local arch arch_count=0
-  local archs=("x86_64" "amd64" "arm64" "aarch64" "$(uname -m)")
-  # Remove duplicates
-  archs=($(printf "%s\n" "${archs[@]}" | sort -u))
+  mapfile -t archs < <(printf "%s\n" "x86_64" "amd64" "arm64" "aarch64" "$(uname -m)" | sort -u)
 
   for arch in "${archs[@]}"; do
     wait_for_jobs 3
 
-    local artifact="$OUTDIR/$(echo "${T}_system-linux-${arch}.zst" | sed 's/[^A-Za-z0-9._-]/_/g')"
+    local artifact
+    artifact="$OUTDIR/$(echo "${T}_system-linux-${arch}.zst" | sed 's/[^A-Za-z0-9._-]/_/g')"
     { curl_download "${baseurl}/system-linux-${arch}.zst" "$artifact"; } &
     progress $! "Artifact ${arch}"
 
@@ -618,7 +617,8 @@ build_report(){
 # ---------- Static analysis ----------
 static_analysis(){
   local OUT="$OUTDIR/static_analysis.txt"; : > "$OUT"
-  local analysis_start=$(date +%s)
+  local analysis_start
+  analysis_start=$(date +%s)
 
   say "[*] Running static analysis..."
 
@@ -660,7 +660,8 @@ static_analysis(){
     fi
 
     # File size
-    local size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo "unknown")
+    local size
+    size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo "unknown")
     echo "[*] Size: $size bytes" >> "$OUT"
     echo "" >> "$OUT"
 
@@ -811,7 +812,7 @@ menu_impl(){
   local choice=""
   if [[ -n "$DIALOG" ]]; then
     local dlg_items=() item
-    for item in "${items[@]}"; do dlg_items+=("$item" "$item"); end=''; done
+    for item in "${items[@]}"; do dlg_items+=("$item" "$item"); done
     if "$DIALOG" --clear --stdout --no-tags --title "$title" --menu "$title" 20 92 14 "${dlg_items[@]}" > "$OUTDIR/.choice"; then
       choice=$(cat "$OUTDIR/.choice")
       rm -f "$OUTDIR/.choice"
@@ -886,7 +887,7 @@ adv_header_matrix(){
   echo >> "$out"
   echo "=== Error Fingerprints ===" >> "$out"
   local p
-  for p in /nope /admin/../admin '/api/..\'; do
+  for p in /nope /admin/../admin '/api/..\\\'; do
     curl --socks5-hostname "$SOCKS" -sS "http://$tgt$p" -o "$ADV_DIR/resp.bin" -w 'code=%{http_code} size=%{size_download}\n' >> "$out"
     if [[ -n "$XXD" && -f "$ADV_DIR/resp.bin" ]]; then "$XXD" -l 64 -g1 "$ADV_DIR/resp.bin" >> "$out"; fi
     echo >> "$out"
@@ -928,9 +929,15 @@ adv_pcap_summaries(){
     "$TCPDUMP" -nn -r "$PCAP_FILE" 'tcp and (port 9050 or 9150 or 9000)' -tttt -c 60 >> "$out" 2>>"$LOG" || true
   fi
   if [[ -n "$TSHARK" ]]; then
-    echo >> "$out"; echo "=== tshark conversations (TCP) ===" >> "$out"
+    {
+        echo ""
+        echo "=== tshark conversations (TCP) ==="
+    } >> "$out"
     "$TSHARK" -r "$PCAP_FILE" -q -z conv,tcp >> "$out" 2>>"$LOG" || true
-    echo >> "$out"; echo "=== SYN timing histogram (sec) ===" >> "$out"
+    {
+        echo ""
+        echo "=== SYN timing histogram (sec) ==="
+    } >> "$out"
     "$TSHARK" -r "$PCAP_FILE" -T fields -e frame.time_epoch -e ip.src -e tcp.dstport -Y 'tcp.flags.syn==1' 2>>"$LOG" \
       | awk '{printf "%.0f\n",$1}' | sort | uniq -c | sort -nr | head >> "$out"
   else
@@ -988,7 +995,8 @@ pcap_menu(){
         if [[ -d "$PCAP_DIR" ]]; then
           say "═══ All PCAP files ═══"
           find "$PCAP_DIR" -name "*.pcap" -o -name "*.pcapng" | while read -r f; do
-            local sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo "?")
+            local sz
+            sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo "?")
             echo "  $(basename "$f") - $sz bytes"
           done
           echo ""
@@ -1028,10 +1036,14 @@ show_dashboard(){
   echo ""
 
   echo "═══ Files Collected ═══"
-  local head_files=$(find "$OUTDIR" -maxdepth 1 -name "*.head" 2>/dev/null | wc -l)
-  local sample_files=$(find "$OUTDIR" -maxdepth 1 -name "*.sample" 2>/dev/null | wc -l)
-  local zst_files=$(find "$OUTDIR" -maxdepth 1 -name "*.zst" 2>/dev/null | wc -l)
-  local bin_files=$(find "$OUTDIR" -maxdepth 1 -name "*.bin" 2>/dev/null | wc -l)
+  local head_files
+  head_files=$(find "$OUTDIR" -maxdepth 1 -name "*.head" 2>/dev/null | wc -l)
+  local sample_files
+  sample_files=$(find "$OUTDIR" -maxdepth 1 -name "*.sample" 2>/dev/null | wc -l)
+  local zst_files
+  zst_files=$(find "$OUTDIR" -maxdepth 1 -name "*.zst" 2>/dev/null | wc -l)
+  local bin_files
+  bin_files=$(find "$OUTDIR" -maxdepth 1 -name "*.bin" 2>/dev/null | wc -l)
 
   echo "  Headers:      $head_files"
   echo "  Samples:      $sample_files"
@@ -1050,7 +1062,8 @@ show_dashboard(){
   echo "═══ PCAP ═══"
   echo "  Status: $(pcap_status)"
   if [[ -n "$PCAP_FILE" && -f "$PCAP_FILE" ]]; then
-    local pcap_sz=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "?")
+    local pcap_sz
+    pcap_sz=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "?")
     echo "  Size:   $pcap_sz bytes"
   fi
   echo ""
@@ -1436,6 +1449,7 @@ while true; do
     "A) Advanced (port scan, snapshots, assets, headers)" \
     "E) Export JSON report" \
     "S) Summary dashboard" \
+    "T) Initiate Takeover/Handover" \
     "Q) Quit")
 
   case "$choice" in
@@ -1655,6 +1669,54 @@ while true; do
 
     "S) Summary dashboard")
       show_dashboard
+      ;;
+
+    "T) Initiate Takeover/Handover")
+      say "═══ C2 Server Takeover/Handover Initiation ═══"
+      say ""
+      say "WARNING: This action is for authorized personnel only and"
+      say "initiates a formal process to package all collected evidence"
+      say "for handover to appropriate authorities. Every action will be"
+      say "logged for legal purposes."
+      say ""
+      echo "Enter Operator ID to proceed, or leave blank to cancel:"
+      read -r operator_id
+
+      if [[ -n "$operator_id" ]]; then
+        say "Operator ID provided: $operator_id"
+        say "Please select the scan directory to process:"
+
+        # Find potential scan directories
+        mapfile -t scan_dirs < <(find . -maxdepth 1 -type d -name "intel_*" -o -name "comprehensive_scan_*" | sort -r)
+
+        if [[ ${#scan_dirs[@]} -eq 0 ]]; then
+            say "[!] No scan directories found to process."
+        else
+            selected_dir=$(menu_impl "Select Scan Directory" "${scan_dirs[@]}")
+
+            if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+                takeover_script="$(dirname "$0")/takeover/takeover.sh"
+                if [[ ! -f "$takeover_script" ]]; then
+                    takeover_script="/home/c2enum/toolkit/takeover/takeover.sh"
+                fi
+
+                if [[ -f "$takeover_script" ]]; then
+                    say "[*] Initiating takeover process for: $selected_dir"
+                    bash "$takeover_script" "$selected_dir" "$operator_id"
+                    say "[✓] Takeover process finished."
+                else
+                    say "[✗] Takeover script not found!"
+                fi
+            else
+                say "[!] Invalid selection or directory not found."
+            fi
+        fi
+      else
+        say "Takeover process cancelled."
+      fi
+      echo ""
+      echo "Press Enter to continue..."
+      read -r
       ;;
 
     "Q) Quit"|""|"Q"|"q")
