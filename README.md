@@ -119,7 +119,7 @@ sudo systemctl start tor
 
 ---
 
-### **8 Specialized Analyzers**
+### **9 Specialized Analyzers**
 
 Located in `analyzers/`:
 
@@ -131,6 +131,7 @@ Located in `analyzers/`:
 6. **KP14 Config Decryption** - XOR/RC4 decryption with APT41 keys
 7. **Hardware Detection** - NPU/GPU/GNA/CPU capabilities
 8. **BGP/ASN Intelligence** ⭐ NEW - Network infrastructure mapping, ASN lookups (Team Cymru, RIPE Stat, BGPView), GeoIP, WHOIS, BGP routing analysis, threat intel checks
+9. **Protocol Analysis** ⭐ NEW - C2 protocol reverse engineering, string extraction, network indicator identification, crypto constant detection, update mechanism analysis, signature verification assessment
 
 ---
 
@@ -159,6 +160,50 @@ Located in `analyzers/`:
 **Performance:** 3-10× speedup on supported hardware
 
 **Menu Option:** Press **'H'** for Hardware Status
+
+---
+
+### **⚖️ C2 Takeover & Neutralization Framework** ⭐ NEW
+
+**Legal botnet takedown and cleanup distribution capabilities**
+
+Comprehensive framework for authorized C2 takeover operations, based on historical successes (Coreflood, GameOver Zeus, Avalanche, Emotet, TrickBot).
+
+#### Key Components:
+
+1. **Protocol Reverse Engineering:**
+   ```bash
+   # Analyze malware sample to extract C2 protocol
+   ./analyzers/protocol-analysis.sh sample.exe analysis_output/
+
+   # Review findings
+   cat analysis_output/PROTOCOL_SUMMARY.txt
+   ```
+
+2. **Takeover Strategy Documentation:**
+   - 5-phase execution framework (docs/C2_TAKEOVER_STRATEGY.md)
+   - Legal authorization requirements
+   - Risk assessment matrices
+   - Historical case studies
+
+3. **Cleanup Distribution:**
+   - Safe payload design
+   - Phased rollout strategies
+   - Success monitoring
+
+4. **Specialized Approaches:**
+   - **Option A:** Infrastructure provider cooperation (preferred)
+   - **Option B:** DNS sinkholing (standard)
+   - **Option C:** Network-level interception (legal authority required)
+   - **Fallback:** Passive defense strategies
+
+**CRITICAL:** All active measures require proper legal authorization. See `docs/C2_TAKEOVER_STRATEGY.md` for complete framework.
+
+**Use Cases:**
+- ✅ Law enforcement with court orders
+- ✅ Coordinated industry response
+- ✅ Corporate defense of own networks
+- ❌ Unauthorized "hacking back" is ILLEGAL
 
 ---
 
