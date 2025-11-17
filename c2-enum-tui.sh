@@ -1077,7 +1077,7 @@ show_dashboard(){
 }
 
 advanced_menu(){
-  local items=("KP14-Auto-Discovery" "Port-Scanner" "Select-Target-for-Deep-Scan" "Run-All-Advanced-On-Target" "Differential-Snapshots" "Asset-Hash-Correlation" "Header-Fingerprint-Matrix" "Binary-Lineage-Analysis" "PCAP-Deep-Analysis" "Certificate-Analysis" "Back")
+  local items=("KP14-Auto-Discovery" "Port-Scanner" "Select-Target-for-Deep-Scan" "Run-All-Advanced-On-Target" "Differential-Snapshots" "Asset-Hash-Correlation" "Header-Fingerprint-Matrix" "Binary-Lineage-Analysis" "PCAP-Deep-Analysis" "Certificate-Analysis" "Protocol-Analysis" "Traffic-Capture" "Sinkhole-Server" "Cleanup-Generator" "BGP-Hijack-Enforcement" "Back")
 
   while true; do
     local act; act=$(menu_impl "Advanced Analysis Menu" "${items[@]}")
@@ -1212,6 +1212,139 @@ advanced_menu(){
       "Certificate-Analysis")
         local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
         [[ -n "$tgt" ]] && adv_cert_analysis "$tgt"
+        ;;
+
+      "Protocol-Analysis")
+        say "═══ C2 Protocol Analysis ═══"
+        say ""
+        echo "Enter path to binary sample:"
+        read -r binary_path
+
+        if [[ -f "$binary_path" ]]; then
+          echo "Enter output directory (default: protocol_analysis_$(date +%Y%m%d_%H%M%S)):"
+          read -r output_dir
+          output_dir="${output_dir:-protocol_analysis_$(date +%Y%m%d_%H%M%S)}"
+
+          protocol_script="$(dirname "$0")/analyzers/protocol-analysis.sh"
+          if [[ -x "$protocol_script" ]]; then
+            say "[*] Analyzing C2 protocol..."
+            bash "$protocol_script" "$binary_path" "$output_dir"
+            say "[✓] Analysis complete: $output_dir"
+          else
+            say "[✗] Protocol analysis script not found"
+          fi
+        else
+          say "[✗] Binary file not found: $binary_path"
+        fi
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        ;;
+
+      "Traffic-Capture")
+        say "═══ C2 Traffic Capture ═══"
+        say ""
+        echo "Capture mode: 1) IP 2) Domain 3) Analyze PCAP"
+        read -r capture_mode
+
+        capture_script="$(dirname "$0")/analyzers/c2-traffic-capture.sh"
+        case "$capture_mode" in
+          1|2)
+            echo "Enter target:"
+            read -r target
+            echo "Duration (seconds) [60]:"
+            read -r duration
+            duration="${duration:-60}"
+
+            if [[ "$capture_mode" == "1" ]]; then
+              bash "$capture_script" --target-ip "$target" --duration "$duration" --output "./traffic_$(date +%Y%m%d_%H%M%S)" 2>&1 || true
+            else
+              bash "$capture_script" --target-domain "$target" --duration "$duration" --output "./traffic_$(date +%Y%m%d_%H%M%S)" 2>&1 || true
+            fi
+            ;;
+          3)
+            echo "PCAP file path:"
+            read -r pcap_file
+            [[ -f "$pcap_file" ]] && bash "$capture_script" --analyze "$pcap_file" --output "./analysis_$(date +%Y%m%d_%H%M%S)" 2>&1 || say "[✗] File not found"
+            ;;
+        esac
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        ;;
+
+      "Sinkhole-Server")
+        say "═══ Sinkhole Server ${RED}[LAW ENFORCEMENT ONLY]${NC} ═══"
+        echo "Legal authorization? (yes/NO):"
+        read -r auth_confirm
+
+        if [[ "$auth_confirm" == "yes" ]]; then
+          echo "Cleanup payload path:"
+          read -r cleanup_path
+
+          if [[ -f "$cleanup_path" ]]; then
+            echo "Phase (1-4) [1]:"
+            read -r phase
+            python3 "$(dirname "$0")/takeover/sinkhole-server.py" --cleanup "$cleanup_path" --phase "${phase:-1}" --legal-ack 2>&1 || true
+          fi
+        fi
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        ;;
+
+      "Cleanup-Generator")
+        say "═══ Cleanup Generator ${RED}[LAW ENFORCEMENT ONLY]${NC} ═══"
+        echo "Legal authorization? (yes/NO):"
+        read -r auth_confirm
+
+        if [[ "$auth_confirm" == "yes" ]]; then
+          echo "Platform (windows/linux) [windows]:"
+          read -r platform
+          platform="${platform:-windows}"
+
+          python3 "$(dirname "$0")/takeover/cleanup-generator.py" --platform "$platform" --profile generic --output "cleanup_${platform}.py" --legal-ack 2>&1 || true
+        fi
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+        ;;
+
+      "BGP-Hijack-Enforcement")
+        say "═══ BGP Hijack ${RED}[EXTREME - COURT ORDER REQUIRED]${NC} ═══"
+        echo "COURT ORDER + ISP AUTHORIZATION? (yes/NO):"
+        read -r auth_confirm
+
+        if [[ "$auth_confirm" == "yes" ]]; then
+          echo "Action: 1) Advertise 2) Withdraw 3) Monitor"
+          read -r bgp_action
+          echo "Target prefix (CIDR):"
+          read -r target_prefix
+          echo "Legal auth file:"
+          read -r legal_auth
+
+          case "$bgp_action" in
+            1)
+              echo "Sinkhole IP:"
+              read -r sinkhole_ip
+              bash "$(dirname "$0")/takeover/bgp-hijack-enforcement.sh" --action advertise --target-prefix "$target_prefix" --sinkhole-ip "$sinkhole_ip" --legal-auth "$legal_auth" 2>&1 || true
+              ;;
+            2)
+              bash "$(dirname "$0")/takeover/bgp-hijack-enforcement.sh" --action withdraw --target-prefix "$target_prefix" --legal-auth "$legal_auth" 2>&1 || true
+              ;;
+            3)
+              bash "$(dirname "$0")/takeover/bgp-hijack-enforcement.sh" --action monitor --target-prefix "$target_prefix" --legal-auth "$legal_auth" 2>&1 || true
+              ;;
+          esac
+        fi
+
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
         ;;
 
       "Back"|*)
