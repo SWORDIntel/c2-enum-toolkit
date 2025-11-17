@@ -1,23 +1,25 @@
-# 🔌 C2 Enumeration Toolkit v2.5
+# 🔌 C2 Enumeration Toolkit v2.6
 
-**Enterprise-Grade Intelligence Platform for .onion C2 Infrastructure Analysis**
+**Enterprise-Grade Intelligence Platform for C2 Infrastructure Analysis (.onion + Clearnet)**
 
-[![Version](https://img.shields.io/badge/version-2.5--openvino-blue)]()
+[![Version](https://img.shields.io/badge/version-2.6--clearnet-blue)]()
 [![License](https://img.shields.io/badge/license-Defensive%20Use%20Only-red)]()
 [![Code Quality](https://img.shields.io/badge/code%20quality-92%2F100-brightgreen)]()
 [![Hardware](https://img.shields.io/badge/hardware-NPU%2FGPU%2FCPU-orange)]()
 
-Safe, comprehensive toolkit for analyzing Command & Control (C2) infrastructure on Tor hidden services (.onion), featuring hardware-accelerated intelligence gathering, steganography detection, and automated endpoint discovery.
+Safe, comprehensive toolkit for analyzing Command & Control (C2) infrastructure on both Tor hidden services (.onion) and clearnet (domains/IPs), featuring hardware-accelerated intelligence gathering, steganography detection, automated endpoint discovery, and BGP/ASN analysis.
 
 ---
 
 ## 🎯 **What This Toolkit Does**
 
-- 🕵️ **Enumerates** C2 infrastructure (ports, paths, binaries, certificates)
+- 🕵️ **Enumerates** C2 infrastructure (ports, paths, binaries, certificates) on .onion and clearnet
 - 🔍 **Discovers** hidden endpoints via steganography and decryption
 - 🧠 **Analyzes** binaries with threat scoring and YARA generation
 - 🚀 **Accelerates** using NPU/GPU/CPU (Intel OpenVINO)
 - 🔗 **Maps** complete C2 infrastructure through recursive discovery
+- 🌐 **NEW:** Clearnet enumeration (DNS, BGP/ASN, GeoIP, certificate analysis)
+- 🗺️ **NEW:** BGP routing intelligence and network infrastructure mapping
 - 📊 **Exports** intelligence in JSON/CSV for automation
 - 🐋 **Deploys** via Docker for isolation and reproducibility
 
@@ -55,13 +57,24 @@ sudo systemctl start tor
 
 # Or CLI mode (JSON output)
 ./c2-enum-cli.sh target.onion > results.json
+
+# === CLEARNET C2 ENUMERATION (NEW!) ===
+
+# Comprehensive clearnet scan
+./c2-enum-clearnet.sh targets.txt output_dir comprehensive
+
+# Quick reconnaissance (fast)
+./c2-quick-recon.sh targets.txt output_dir
+
+# BGP/ASN intelligence gathering
+./analyzers/bgp-asn-intel.sh <ip_or_domain> output.txt
 ```
 
 ---
 
 ## 🚀 **Key Features**
 
-### **3 Operating Modes**
+### **5 Operating Modes**
 
 #### 1. **Interactive TUI** (`c2-enum-tui.sh`)
 - 20 menu options
@@ -83,9 +96,30 @@ sudo systemctl start tor
 - CI/CD integration ready
 - Proper exit codes
 
+#### 4. **Clearnet Comprehensive** (`c2-enum-clearnet.sh`) ⭐ NEW
+- DNS resolution & validation
+- Port scanning (standard: 23 ports / comprehensive: 60+ ports)
+- HTTP/HTTPS enumeration with header analysis
+- SSL certificate collection & analysis
+- Service fingerprinting & banner grabbing
+- ASN/BGP lookups
+- GeoIP resolution
+- WHOIS data gathering
+- Compatible with takeover functionality
+
+#### 5. **Quick Reconnaissance** (`c2-quick-recon.sh`) ⭐ NEW
+- Fast intelligence gathering (5-10 seconds per target)
+- DNS resolution with timeout protection
+- ICMP reachability checks
+- Quick port scanning (5 common C2 ports)
+- HTTP header grabbing
+- SSL certificate collection
+- GeoIP via ipinfo.io API
+- Ideal for large target lists or potentially offline infrastructure
+
 ---
 
-### **7 Specialized Analyzers**
+### **8 Specialized Analyzers**
 
 Located in `analyzers/`:
 
@@ -96,6 +130,7 @@ Located in `analyzers/`:
 5. **KP14 Steganography** - Hidden payload extraction from images (JPEG EOI)
 6. **KP14 Config Decryption** - XOR/RC4 decryption with APT41 keys
 7. **Hardware Detection** - NPU/GPU/GNA/CPU capabilities
+8. **BGP/ASN Intelligence** ⭐ NEW - Network infrastructure mapping, ASN lookups (Team Cymru, RIPE Stat, BGPView), GeoIP, WHOIS, BGP routing analysis, threat intel checks
 
 ---
 

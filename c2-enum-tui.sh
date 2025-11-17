@@ -1436,6 +1436,9 @@ while true; do
     "C) COMPREHENSIVE SCAN (aggressive)" \
     "I) INTELLIGENT ANALYSIS (AI-powered, auto-chain)" \
     "R) Quick reachability check" \
+    "N) CLEARNET ENUMERATION (domains/IPs) ⭐ NEW" \
+    "Q) QUICK RECON (fast clearnet intel) ⭐ NEW" \
+    "B) BGP/ASN ANALYSIS (network intel) ⭐ NEW" \
     "4) File picker (inspect outputs)" \
     "5) Decompress *.zst to *.bin (read-only)" \
     "6) Build YARA seed" \
@@ -1450,7 +1453,7 @@ while true; do
     "E) Export JSON report" \
     "S) Summary dashboard" \
     "T) Initiate Takeover/Handover" \
-    "Q) Quit")
+    "X) Quit")
 
   case "$choice" in
     "1) Re-enumerate all targets")
@@ -1574,6 +1577,146 @@ while true; do
         test_onion_reachable "$tgt" || true
         say ""
       done
+      echo "Press Enter to continue..."
+      read -r
+      ;;
+
+    "N) CLEARNET ENUMERATION (domains/IPs) ⭐ NEW")
+      say "═══ CLEARNET C2 ENUMERATION ═══"
+      say ""
+      say "This will perform comprehensive enumeration of clearnet C2 infrastructure:"
+      say "  • DNS resolution & validation"
+      say "  • Port scanning (standard: 23 ports / comprehensive: 60+ ports)"
+      say "  • HTTP/HTTPS enumeration with header analysis"
+      say "  • SSL certificate collection & analysis"
+      say "  • Service fingerprinting & banner grabbing"
+      say "  • ASN/BGP lookups & GeoIP resolution"
+      say "  • WHOIS data gathering"
+      say ""
+      echo "Enter targets file path (or press Enter to skip):"
+      read -r targets_file
+      if [[ -n "$targets_file" ]] && [[ -f "$targets_file" ]]; then
+        echo "Enter output directory (default: clearnet_enum_$(date +%Y%m%d_%H%M%S)):"
+        read -r output_dir
+        output_dir="${output_dir:-clearnet_enum_$(date +%Y%m%d_%H%M%S)}"
+
+        echo "Scan mode? (1=standard, 2=comprehensive) [2]:"
+        read -r mode_choice
+        case "$mode_choice" in
+          1) scan_mode="standard" ;;
+          *) scan_mode="comprehensive" ;;
+        esac
+
+        say "[*] Starting clearnet enumeration..."
+        say "[*] Targets: $targets_file"
+        say "[*] Output: $output_dir"
+        say "[*] Mode: $scan_mode"
+        say ""
+
+        if [[ -x "./c2-enum-clearnet.sh" ]]; then
+          ./c2-enum-clearnet.sh "$targets_file" "$output_dir" "$scan_mode" || true
+          say ""
+          say "[✓] Clearnet enumeration complete!"
+          say "[*] Results saved to: $output_dir"
+          say "[*] Master report: $output_dir/MASTER_REPORT.txt"
+        else
+          say "[!] Error: c2-enum-clearnet.sh not found or not executable"
+        fi
+      else
+        say "[!] Invalid targets file: $targets_file"
+      fi
+      echo ""
+      echo "Press Enter to continue..."
+      read -r
+      ;;
+
+    "Q) QUICK RECON (fast clearnet intel) ⭐ NEW")
+      say "═══ QUICK RECONNAISSANCE ═══"
+      say ""
+      say "Fast intelligence gathering for clearnet C2 infrastructure:"
+      say "  • Quick DNS resolution (3s timeout)"
+      say "  • ICMP reachability checks"
+      say "  • Fast port scanning (5 common C2 ports: 80, 443, 8080, 8443, 9000)"
+      say "  • HTTP header grabbing"
+      say "  • SSL certificate collection"
+      say "  • GeoIP via ipinfo.io API"
+      say "  • ~5-10 seconds per target"
+      say ""
+      say "Ideal for large target lists or potentially offline infrastructure."
+      say ""
+      echo "Enter targets file path (or press Enter to skip):"
+      read -r targets_file
+      if [[ -n "$targets_file" ]] && [[ -f "$targets_file" ]]; then
+        echo "Enter output directory (default: quick_recon_$(date +%Y%m%d_%H%M%S)):"
+        read -r output_dir
+        output_dir="${output_dir:-quick_recon_$(date +%Y%m%d_%H%M%S)}"
+
+        say "[*] Starting quick reconnaissance..."
+        say "[*] Targets: $targets_file"
+        say "[*] Output: $output_dir"
+        say ""
+
+        if [[ -x "./c2-quick-recon.sh" ]]; then
+          ./c2-quick-recon.sh "$targets_file" "$output_dir" || true
+          say ""
+          say "[✓] Quick reconnaissance complete!"
+          say "[*] Results saved to: $output_dir"
+          say "[*] Master report: $output_dir/MASTER_REPORT.txt"
+        else
+          say "[!] Error: c2-quick-recon.sh not found or not executable"
+        fi
+      else
+        say "[!] Invalid targets file: $targets_file"
+      fi
+      echo ""
+      echo "Press Enter to continue..."
+      read -r
+      ;;
+
+    "B) BGP/ASN ANALYSIS (network intel) ⭐ NEW")
+      say "═══ BGP/ASN INTELLIGENCE GATHERING ═══"
+      say ""
+      say "Network infrastructure analysis capabilities:"
+      say "  • ASN lookups (Team Cymru, RIPE Stat, BGPView)"
+      say "  • BGP routing information & prefix announcements"
+      say "  • GeoIP & network ownership details"
+      say "  • WHOIS data & abuse contacts"
+      say "  • BGP hijack/anomaly detection"
+      say "  • Upstream/downstream peer relationships"
+      say "  • Threat intelligence cross-reference"
+      say ""
+      echo "Enter IP address or domain to analyze:"
+      read -r target
+      if [[ -n "$target" ]]; then
+        echo "Enter output file (default: bgp_analysis_${target//[:\/\.]/_}.txt):"
+        read -r output_file
+        output_file="${output_file:-bgp_analysis_${target//[:\/\.]/_}.txt}"
+
+        say "[*] Starting BGP/ASN analysis..."
+        say "[*] Target: $target"
+        say "[*] Output: $output_file"
+        say ""
+
+        if [[ -x "./analyzers/bgp-asn-intel.sh" ]]; then
+          ./analyzers/bgp-asn-intel.sh "$target" "$output_file" || true
+          say ""
+          say "[✓] BGP/ASN analysis complete!"
+          say "[*] Report saved to: $output_file"
+
+          # Offer to view the report
+          echo ""
+          echo "View report now? (y/N)"
+          read -r view_choice
+          if [[ "$view_choice" =~ ^[Yy]$ ]]; then
+            [[ -n "$LESS_BIN" ]] && "$LESS_BIN" -R "$output_file" || cat "$output_file"
+          fi
+        else
+          say "[!] Error: analyzers/bgp-asn-intel.sh not found or not executable"
+        fi
+      else
+        say "[!] No target specified"
+      fi
+      echo ""
       echo "Press Enter to continue..."
       read -r
       ;;
@@ -1719,7 +1862,7 @@ while true; do
       read -r
       ;;
 
-    "Q) Quit"|""|"Q"|"q")
+    "X) Quit"|""|"X"|"x")
       say "[*] Shutting down..."
       break
       ;;
