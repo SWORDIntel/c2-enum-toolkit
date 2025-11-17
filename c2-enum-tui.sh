@@ -1,8 +1,47 @@
 #!/usr/bin/env bash
-# c2-enum-tui.sh — Safe, TUI-driven Tor .onion C2 enumeration + static analysis + PCAP (default ON)
-# Hardened: quoted heredocs, safer loops, auto OUTDIR from first target if not provided, no exec of remote code.
+# ═══════════════════════════════════════════════════════════════════════════════
+# C2-ENUM-TUI v3.0 — TEMPEST CLASS C COMPLIANT INTERFACE
+# Secure Terminal User Interface for C2 Infrastructure Analysis
+# Classification: UNCLASSIFIED // FOR OFFICIAL USE ONLY
+# ═══════════════════════════════════════════════════════════════════════════════
+# Hardened: quoted heredocs, safer loops, auto OUTDIR, no exec of remote code.
 set -euo pipefail
 IFS=$'\n\t'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEMPEST CLASS C VISUAL STANDARDS
+# Government-grade terminal display specifications
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ANSI Color Definitions - TEMPEST Amber/Green on Black
+readonly TEMPEST_AMBER='\033[38;5;214m'      # Primary text - Amber
+readonly TEMPEST_GREEN='\033[38;5;46m'       # Success/Active indicators
+readonly TEMPEST_RED='\033[38;5;196m'        # Critical/Error/Classified
+readonly TEMPEST_CYAN='\033[38;5;51m'        # Information/Headers
+readonly TEMPEST_WHITE='\033[38;5;255m'      # High contrast text
+readonly TEMPEST_YELLOW='\033[38;5;226m'     # Warnings
+readonly TEMPEST_GRAY='\033[38;5;244m'       # Secondary/Disabled
+readonly TEMPEST_BG_BLACK='\033[48;5;232m'   # Background
+readonly NC='\033[0m'                         # Reset
+readonly BOLD='\033[1m'
+readonly DIM='\033[2m'
+readonly BLINK='\033[5m'
+
+# Classification Banner Settings
+readonly CLASSIFICATION="UNCLASSIFIED // FOR OFFICIAL USE ONLY"
+readonly SYSTEM_ID="C2-ENUM-TUI"
+readonly VERSION="3.0-TEMPEST"
+readonly BUILD_DATE="2024-01"
+
+# Status Indicator Symbols (MIL-STD-2525 inspired)
+readonly SYM_ACTIVE="●"
+readonly SYM_INACTIVE="○"
+readonly SYM_SUCCESS="✓"
+readonly SYM_FAILURE="✗"
+readonly SYM_WARNING="⚠"
+readonly SYM_SECURE="◆"
+readonly SYM_CLASSIFIED="■"
+readonly SYM_PENDING="◌"
 
 # ---------- Known C2 targets ----------
 KNOWN_TARGETS=(
@@ -15,6 +54,8 @@ SOCKS="${SOCKS:-127.0.0.1:9050}"
 OUTDIR=""
 AUTO_ENUM=true
 VERBOSE=true
+OPERATOR_ID="${OPERATOR_ID:-UNIDENTIFIED}"
+SESSION_ID="$(date +%Y%m%d%H%M%S)-$$"
 
 # PCAP defaults (ON)
 PCAP_ON=true
@@ -22,6 +63,174 @@ PCAP_IF="${PCAP_IF:-lo}"
 PCAP_FILTER_DEFAULT='tcp and (port 9050 or 9150 or 9000)'
 PCAP_FILTER="${PCAP_FILTER:-$PCAP_FILTER_DEFAULT}"
 PCAP_DIR=""
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEMPEST DISPLAY FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Classification Banner - Top
+print_classification_banner_top() {
+    local width=78
+    local padding=$(( (width - ${#CLASSIFICATION}) / 2 ))
+    echo -e "${TEMPEST_BG_BLACK}${TEMPEST_RED}${BOLD}"
+    printf "╔"
+    printf '═%.0s' $(seq 1 $width)
+    printf "╗\n"
+    printf "║%*s%s%*s║\n" $padding "" "$CLASSIFICATION" $((width - padding - ${#CLASSIFICATION})) ""
+    printf "╚"
+    printf '═%.0s' $(seq 1 $width)
+    printf "╝\n"
+    echo -e "${NC}"
+}
+
+# Classification Banner - Bottom
+print_classification_banner_bottom() {
+    local width=78
+    local padding=$(( (width - ${#CLASSIFICATION}) / 2 ))
+    echo -e "${TEMPEST_RED}${BOLD}"
+    printf "╔"
+    printf '═%.0s' $(seq 1 $width)
+    printf "╗\n"
+    printf "║%*s%s%*s║\n" $padding "" "$CLASSIFICATION" $((width - padding - ${#CLASSIFICATION})) ""
+    printf "╚"
+    printf '═%.0s' $(seq 1 $width)
+    printf "╝\n"
+    echo -e "${NC}"
+}
+
+# System Identification Header
+print_system_header() {
+    echo -e "${TEMPEST_CYAN}${BOLD}"
+    echo "┌──────────────────────────────────────────────────────────────────────────────┐"
+    echo "│                    ${TEMPEST_AMBER}C2 ENUMERATION TOOLKIT${TEMPEST_CYAN}                                │"
+    echo "│                  ${TEMPEST_WHITE}TEMPEST CLASS C INTERFACE${TEMPEST_CYAN}                              │"
+    echo "├──────────────────────────────────────────────────────────────────────────────┤"
+    printf "│ ${TEMPEST_GRAY}SYSTEM:${TEMPEST_AMBER} %-15s ${TEMPEST_GRAY}VERSION:${TEMPEST_AMBER} %-10s ${TEMPEST_GRAY}BUILD:${TEMPEST_AMBER} %-12s${TEMPEST_CYAN}     │\n" "$SYSTEM_ID" "$VERSION" "$BUILD_DATE"
+    printf "│ ${TEMPEST_GRAY}SESSION:${TEMPEST_GREEN} %-14s ${TEMPEST_GRAY}OPERATOR:${TEMPEST_WHITE} %-28s${TEMPEST_CYAN}│\n" "$SESSION_ID" "$OPERATOR_ID"
+    echo "└──────────────────────────────────────────────────────────────────────────────┘"
+    echo -e "${NC}"
+}
+
+# Status Line
+print_status_line() {
+    local pcap_status="$1"
+    local target_count="$2"
+    local tor_status="$3"
+
+    echo -e "${TEMPEST_GRAY}├──────────────────────────────────────────────────────────────────────────────┤${NC}"
+    printf "${TEMPEST_GRAY}│${NC} "
+
+    # PCAP Status
+    if [[ "$pcap_status" == "ON" ]]; then
+        printf "${TEMPEST_GREEN}${SYM_ACTIVE} PCAP${NC}"
+    else
+        printf "${TEMPEST_GRAY}${SYM_INACTIVE} PCAP${NC}"
+    fi
+
+    printf "  │  "
+
+    # Target Count
+    printf "${TEMPEST_AMBER}TARGETS: %02d${NC}" "$target_count"
+
+    printf "  │  "
+
+    # Tor Status
+    if [[ "$tor_status" == "OK" ]]; then
+        printf "${TEMPEST_GREEN}${SYM_SECURE} TOR${NC}"
+    else
+        printf "${TEMPEST_RED}${SYM_FAILURE} TOR${NC}"
+    fi
+
+    printf "  │  "
+
+    # Timestamp
+    printf "${TEMPEST_GRAY}%s${NC}" "$(date -u +'%H:%M:%S UTC')"
+
+    printf "\n"
+    echo -e "${TEMPEST_GRAY}└──────────────────────────────────────────────────────────────────────────────┘${NC}"
+}
+
+# Section Header
+print_section_header() {
+    local title="$1"
+    local width=78
+    local padding=$(( (width - ${#title} - 4) / 2 ))
+
+    echo -e "${TEMPEST_CYAN}"
+    printf "┌"
+    printf '─%.0s' $(seq 1 $padding)
+    printf "┤ ${TEMPEST_AMBER}%s${TEMPEST_CYAN} ├" "$title"
+    printf '─%.0s' $(seq 1 $((width - padding - ${#title} - 4)))
+    printf "┐\n"
+    echo -e "${NC}"
+}
+
+# Audit Log Entry
+audit_log() {
+    local level="$1"
+    local message="$2"
+    local ts
+    ts="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+    # Console output with TEMPEST colors
+    case "$level" in
+        "INFO")  printf "${TEMPEST_CYAN}[%s]${NC} ${TEMPEST_GRAY}[INFO]${NC}  %s\n" "$ts" "$message" ;;
+        "WARN")  printf "${TEMPEST_CYAN}[%s]${NC} ${TEMPEST_YELLOW}[WARN]${NC}  %s\n" "$ts" "$message" ;;
+        "ERROR") printf "${TEMPEST_CYAN}[%s]${NC} ${TEMPEST_RED}[ERROR]${NC} %s\n" "$ts" "$message" ;;
+        "SEC")   printf "${TEMPEST_CYAN}[%s]${NC} ${TEMPEST_RED}[SEC]${NC}   %s\n" "$ts" "$message" ;;
+        "AUDIT") printf "${TEMPEST_CYAN}[%s]${NC} ${TEMPEST_GREEN}[AUDIT]${NC} %s\n" "$ts" "$message" ;;
+        *)       printf "${TEMPEST_CYAN}[%s]${NC} [%s] %s\n" "$ts" "$level" "$message" ;;
+    esac
+
+    # File logging
+    [[ -n "${LOG:-}" ]] && printf "[%s] [%s] [%s] [%s] %s\n" "$ts" "$SESSION_ID" "$OPERATOR_ID" "$level" "$message" >> "$LOG"
+}
+
+# TEMPEST-styled menu item
+tempest_menu_item() {
+    local num="$1"
+    local label="$2"
+    local status="${3:-}"
+
+    printf "${TEMPEST_AMBER}%3s${NC}) ${TEMPEST_WHITE}%-50s${NC}" "$num" "$label"
+
+    if [[ -n "$status" ]]; then
+        case "$status" in
+            "NEW")    printf " ${TEMPEST_GREEN}[NEW]${NC}" ;;
+            "HOT")    printf " ${TEMPEST_RED}[HOT]${NC}" ;;
+            "SEC")    printf " ${TEMPEST_RED}[SECURED]${NC}" ;;
+            "ACTIVE") printf " ${TEMPEST_GREEN}${SYM_ACTIVE}${NC}" ;;
+        esac
+    fi
+    printf "\n"
+}
+
+# Progress indicator with TEMPEST styling
+tempest_progress() {
+    local pid="$1"
+    local msg="$2"
+    local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
+    local elapsed=0
+
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$(( (i+1) % 10 ))
+        elapsed=$((elapsed + 1))
+        printf "\r${TEMPEST_AMBER}[${spin:$i:1}]${NC} %s ${TEMPEST_GRAY}(%ds)${NC}" "$msg" "$elapsed"
+        sleep 0.1
+    done
+
+    wait "$pid" 2>/dev/null
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 ]]; then
+        printf "\r${TEMPEST_GREEN}[${SYM_SUCCESS}]${NC} %s ${TEMPEST_GRAY}(%ds)${NC}\n" "$msg" "$((elapsed/10))"
+    else
+        printf "\r${TEMPEST_RED}[${SYM_FAILURE}]${NC} %s ${TEMPEST_GRAY}(FAILED)${NC}\n" "$msg"
+    fi
+
+    return $exit_code
+}
 
 # ---------- Tools ----------
 CURL_BIN=$(command -v curl || true)
@@ -1016,88 +1225,151 @@ pcap_menu(){
 # ---------- Dashboard ----------
 show_dashboard(){
   clear
-  echo "╔════════════════════════════════════════════════════════════════════╗"
-  echo "║                      C2 Enumeration Dashboard                      ║"
-  echo "╚════════════════════════════════════════════════════════════════════╝"
+  print_classification_banner_top
+
+  echo -e "${TEMPEST_CYAN}${BOLD}"
+  echo "┌──────────────────────────────────────────────────────────────────────────────┐"
+  echo "│                        OPERATIONAL STATUS DASHBOARD                          │"
+  echo "└──────────────────────────────────────────────────────────────────────────────┘"
+  echo -e "${NC}"
+
+  # Session Info
+  print_section_header "SESSION INFORMATION"
+  echo -e "  ${TEMPEST_GRAY}OUTDIR:${NC}     ${TEMPEST_WHITE}$OUTDIR${NC}"
+  echo -e "  ${TEMPEST_GRAY}OPERATOR:${NC}   ${TEMPEST_GREEN}$OPERATOR_ID${NC}"
+  echo -e "  ${TEMPEST_GRAY}SESSION:${NC}    ${TEMPEST_AMBER}$SESSION_ID${NC}"
+  echo -e "  ${TEMPEST_GRAY}SOCKS:${NC}      ${TEMPEST_WHITE}$SOCKS${NC}"
   echo ""
 
-  echo "═══ Session Info ═══"
-  echo "OUTDIR:       $OUTDIR"
-  echo "Start time:   $(stat -f%SB "$LOG" 2>/dev/null || stat -c%y "$LOG" 2>/dev/null | cut -d. -f1)"
-  echo "SOCKS proxy:  $SOCKS"
-  echo ""
-
-  echo "═══ Targets (${#TARGETS[@]}) ═══"
+  # Targets
+  print_section_header "ACTIVE TARGETS (${#TARGETS[@]})"
   local idx=1
   for t in "${TARGETS[@]}"; do
-    echo "  $idx) $t"
+    echo -e "  ${TEMPEST_AMBER}$idx)${NC} ${TEMPEST_WHITE}$t${NC}"
     ((idx++))
   done
   echo ""
 
-  echo "═══ Files Collected ═══"
-  local head_files
+  # Files Collected
+  print_section_header "COLLECTED INTELLIGENCE"
+  local head_files sample_files zst_files bin_files
   head_files=$(find "$OUTDIR" -maxdepth 1 -name "*.head" 2>/dev/null | wc -l)
-  local sample_files
   sample_files=$(find "$OUTDIR" -maxdepth 1 -name "*.sample" 2>/dev/null | wc -l)
-  local zst_files
   zst_files=$(find "$OUTDIR" -maxdepth 1 -name "*.zst" 2>/dev/null | wc -l)
-  local bin_files
   bin_files=$(find "$OUTDIR" -maxdepth 1 -name "*.bin" 2>/dev/null | wc -l)
 
-  echo "  Headers:      $head_files"
-  echo "  Samples:      $sample_files"
-  echo "  Archives:     $zst_files"
-  echo "  Binaries:     $bin_files"
+  echo -e "  ${TEMPEST_CYAN}Headers:${NC}    ${TEMPEST_WHITE}$head_files${NC}"
+  echo -e "  ${TEMPEST_CYAN}Samples:${NC}    ${TEMPEST_WHITE}$sample_files${NC}"
+  echo -e "  ${TEMPEST_CYAN}Archives:${NC}   ${TEMPEST_WHITE}$zst_files${NC}"
+  echo -e "  ${TEMPEST_CYAN}Binaries:${NC}   ${TEMPEST_WHITE}$bin_files${NC}"
   echo ""
 
-  echo "═══ Reports ═══"
-  [[ -f "$OUTDIR/report.txt" ]] && echo "  [✓] Main report" || echo "  [✗] Main report"
-  [[ -f "$OUTDIR/static_analysis.txt" ]] && echo "  [✓] Static analysis" || echo "  [✗] Static analysis"
-  [[ -f "$OUTDIR/yara_seed.yar" ]] && echo "  [✓] YARA seed" || echo "  [✗] YARA seed"
-  [[ -f "$OUTDIR/suricata_c2_host.rule" ]] && echo "  [✓] Suricata rule" || echo "  [✗] Suricata rule"
-  [[ -f "$OUTDIR/c2-enum-report.json" ]] && echo "  [✓] JSON export" || echo "  [✗] JSON export"
-  echo ""
-
-  echo "═══ PCAP ═══"
-  echo "  Status: $(pcap_status)"
-  if [[ -n "$PCAP_FILE" && -f "$PCAP_FILE" ]]; then
-    local pcap_sz
-    pcap_sz=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "?")
-    echo "  Size:   $pcap_sz bytes"
+  # Reports Status
+  print_section_header "REPORT STATUS"
+  if [[ -f "$OUTDIR/report.txt" ]]; then
+    echo -e "  ${TEMPEST_GREEN}${SYM_SUCCESS}${NC} Main report"
+  else
+    echo -e "  ${TEMPEST_GRAY}${SYM_INACTIVE}${NC} Main report"
+  fi
+  if [[ -f "$OUTDIR/static_analysis.txt" ]]; then
+    echo -e "  ${TEMPEST_GREEN}${SYM_SUCCESS}${NC} Static analysis"
+  else
+    echo -e "  ${TEMPEST_GRAY}${SYM_INACTIVE}${NC} Static analysis"
+  fi
+  if [[ -f "$OUTDIR/yara_seed.yar" ]]; then
+    echo -e "  ${TEMPEST_GREEN}${SYM_SUCCESS}${NC} YARA seed"
+  else
+    echo -e "  ${TEMPEST_GRAY}${SYM_INACTIVE}${NC} YARA seed"
+  fi
+  if [[ -f "$OUTDIR/suricata_c2_host.rule" ]]; then
+    echo -e "  ${TEMPEST_GREEN}${SYM_SUCCESS}${NC} Suricata rule"
+  else
+    echo -e "  ${TEMPEST_GRAY}${SYM_INACTIVE}${NC} Suricata rule"
+  fi
+  if [[ -f "$OUTDIR/c2-enum-report.json" ]]; then
+    echo -e "  ${TEMPEST_GREEN}${SYM_SUCCESS}${NC} JSON export"
+  else
+    echo -e "  ${TEMPEST_GRAY}${SYM_INACTIVE}${NC} JSON export"
   fi
   echo ""
 
-  echo "═══ Disk Usage ═══"
-  du -sh "$OUTDIR" 2>/dev/null || echo "  (unable to calculate)"
+  # PCAP Status
+  print_section_header "PCAP CAPTURE"
+  echo -e "  ${TEMPEST_CYAN}Status:${NC}  ${TEMPEST_WHITE}$(pcap_status)${NC}"
+  if [[ -n "$PCAP_FILE" && -f "$PCAP_FILE" ]]; then
+    local pcap_sz
+    pcap_sz=$(stat -f%z "$PCAP_FILE" 2>/dev/null || stat -c%s "$PCAP_FILE" 2>/dev/null || echo "?")
+    echo -e "  ${TEMPEST_CYAN}Size:${NC}    ${TEMPEST_WHITE}$pcap_sz bytes${NC}"
+  fi
   echo ""
 
-  echo "Press Enter to continue..."
+  # Disk Usage
+  print_section_header "STORAGE"
+  echo -e "  ${TEMPEST_CYAN}Usage:${NC}   ${TEMPEST_WHITE}$(du -sh "$OUTDIR" 2>/dev/null | cut -f1 || echo 'N/A')${NC}"
+  echo ""
+
+  print_classification_banner_bottom
+  echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
   read -r
 }
 
 advanced_menu(){
-  local items=("KP14-Auto-Discovery" "Port-Scanner" "Select-Target-for-Deep-Scan" "Run-All-Advanced-On-Target" "Differential-Snapshots" "Asset-Hash-Correlation" "Header-Fingerprint-Matrix" "Binary-Lineage-Analysis" "PCAP-Deep-Analysis" "Certificate-Analysis" "Protocol-Analysis" "Traffic-Capture" "Sinkhole-Server" "Cleanup-Generator" "BGP-Hijack-Enforcement" "Back")
-
   while true; do
-    local act; act=$(menu_impl "Advanced Analysis Menu" "${items[@]}")
+    clear
+    print_classification_banner_top
+
+    echo -e "${TEMPEST_CYAN}${BOLD}"
+    echo "┌──────────────────────────────────────────────────────────────────────────────┐"
+    echo "│                      ADVANCED ANALYSIS OPERATIONS                            │"
+    echo "└──────────────────────────────────────────────────────────────────────────────┘"
+    echo -e "${NC}"
+
+    echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}DISCOVERY & SCANNING${TEMPEST_CYAN} ├────────────────────────────┐${NC}"
+    tempest_menu_item "1" "KP14 Auto-Discovery (hidden endpoints)"
+    tempest_menu_item "2" "Port Scanner"
+    tempest_menu_item "3" "Deep Scan (all modules on target)"
+    echo ""
+
+    echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}FORENSIC ANALYSIS${TEMPEST_CYAN} ├──────────────────────────────┐${NC}"
+    tempest_menu_item "4" "Differential Snapshots"
+    tempest_menu_item "5" "Asset Hash Correlation"
+    tempest_menu_item "6" "Header Fingerprint Matrix"
+    tempest_menu_item "7" "Binary Lineage Analysis"
+    tempest_menu_item "8" "Certificate Analysis"
+    echo ""
+
+    echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}PROTOCOL & TRAFFIC${TEMPEST_CYAN} ├──────────────────────────────┐${NC}"
+    tempest_menu_item "9" "PCAP Deep Analysis"
+    tempest_menu_item "P" "Protocol Analysis"
+    tempest_menu_item "T" "Traffic Capture"
+    echo ""
+
+    echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}TAKEOVER OPERATIONS${TEMPEST_CYAN} ├─────────────────────────────┐${NC}"
+    tempest_menu_item "S" "Sinkhole Server" "SEC"
+    tempest_menu_item "C" "Cleanup Generator" "SEC"
+    tempest_menu_item "B" "BGP Hijack Enforcement" "SEC"
+    echo ""
+
+    tempest_menu_item "X" "Return to Main Menu"
+    echo ""
+
+    print_classification_banner_bottom
+    echo -e "${TEMPEST_WHITE}SELECT OPERATION: ${NC}"
+    read -r act
+
+    audit_log "AUDIT" "Advanced menu selection: $act"
+
     case "$act" in
-      "KP14-Auto-Discovery")
-        say "═══ KP14 Auto-Discovery ═══"
-        say ""
-        say "This will analyze downloaded files for hidden C2 endpoints using:"
-        say "  • Steganography extraction from images"
-        say "  • XOR/RC4 decryption of binary configs"
-        say "  • Network indicator extraction"
-        say ""
-        echo "Select source directory:"
-        echo "  1) Current OUTDIR ($OUTDIR)"
-        echo "  2) Custom directory"
+      "1")
+        print_section_header "KP14 AUTO-DISCOVERY"
+        echo -e "${TEMPEST_AMBER}Analyze files for hidden C2 endpoints${NC}"
+        echo ""
+        echo -e "${TEMPEST_WHITE}Source: 1) Current OUTDIR  2) Custom${NC}"
         read -r choice
 
         scan_dir="$OUTDIR"
         if [[ "$choice" == "2" ]]; then
-          echo "Enter directory path:"
+          echo -e "${TEMPEST_WHITE}Enter directory path:${NC} "
           read -r scan_dir
         fi
 
@@ -1106,156 +1378,139 @@ advanced_menu(){
           [[ ! -f "$kp14_script" ]] && kp14_script="/home/c2enum/toolkit/analyzers/kp14-autodiscover.sh"
 
           if [[ -f "$kp14_script" ]]; then
-            say "[*] Running KP14 auto-discovery..."
+            audit_log "INFO" "KP14 auto-discovery: $scan_dir"
             bash "$kp14_script" "$scan_dir" "$scan_dir/kp14_discovery"
 
-            # Check results
             if [[ -f "$scan_dir/kp14_discovery/discovered_endpoints.txt" ]]; then
               count=$(wc -l < "$scan_dir/kp14_discovery/discovered_endpoints.txt" 2>/dev/null || echo 0)
-
               if [[ $count -gt 0 ]]; then
-                say ""
-                say "[✓] Discovered $count hidden endpoint(s)!"
-                say ""
+                echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Discovered $count hidden endpoint(s)!${NC}"
                 cat "$scan_dir/kp14_discovery/discovered_endpoints.txt"
-                say ""
-                echo "Add discovered endpoints to target list? (y/N)"
+                echo -e "${TEMPEST_WHITE}Add to target list? (y/N):${NC} "
                 read -r add_choice
-
                 if [[ "$add_choice" =~ ^[Yy]$ ]]; then
                   while read -r line; do
                     endpoint=$(echo "$line" | awk '{print $1}')
-                    if [[ "$endpoint" =~ \.onion ]]; then
-                      TARGETS+=("$endpoint")
-                      say "[✓] Added: $endpoint"
-                    fi
+                    [[ "$endpoint" =~ \.onion ]] && TARGETS+=("$endpoint")
                   done < "$scan_dir/kp14_discovery/discovered_endpoints.txt"
-
-                  say ""
-                  say "Total targets now: ${#TARGETS[@]}"
                 fi
               else
-                say "[!] No hidden endpoints discovered"
+                echo -e "${TEMPEST_YELLOW}${SYM_WARNING} No hidden endpoints discovered${NC}"
               fi
             fi
           else
-            say "[✗] KP14 auto-discovery script not found"
+            echo -e "${TEMPEST_RED}${SYM_FAILURE} KP14 script not found${NC}"
           fi
         else
-          say "[✗] Directory not found: $scan_dir"
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} Directory not found${NC}"
         fi
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "Port-Scanner")
+      "2")
         local tgt; tgt=$(menu_impl "Pick target for port scan" "${TARGETS[@]}")
         if [[ -n "$tgt" ]]; then
+          audit_log "INFO" "Port scan: $tgt"
           scan_onion_ports "$tgt"
-          echo ""
-          echo "Press Enter to continue..."
+          echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
           read -r
         fi
         ;;
 
-      "Select-Target-for-Deep-Scan")
-        local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
+      "3")
+        local tgt; tgt=$(menu_impl "Pick target for deep scan" "${TARGETS[@]}")
         if [[ -n "$tgt" ]]; then
-          say "[*] Deep scanning: $tgt"
-          scan_onion_ports "$tgt"
-          adv_snapshots "$tgt"
-          adv_assets_hash "$tgt"
-          adv_header_matrix "$tgt"
-          say "[✓] Deep scan complete for $tgt"
-        fi
-        ;;
-
-      "Run-All-Advanced-On-Target")
-        local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
-        if [[ -n "$tgt" ]]; then
-          say "[*] Running all advanced modules on: $tgt"
+          audit_log "INFO" "Deep scan initiated: $tgt"
           scan_onion_ports "$tgt"
           adv_snapshots "$tgt"
           adv_assets_hash "$tgt"
           adv_header_matrix "$tgt"
           adv_binary_lineage
           adv_cert_analysis "$tgt"
-          say "[✓] All advanced analysis complete"
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Deep scan complete${NC}"
+          echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+          read -r
         fi
         ;;
 
-      "Differential-Snapshots")
+      "4")
         local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
         [[ -n "$tgt" ]] && adv_snapshots "$tgt"
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
         ;;
 
-      "Asset-Hash-Correlation")
+      "5")
         local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
         [[ -n "$tgt" ]] && adv_assets_hash "$tgt"
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
         ;;
 
-      "Header-Fingerprint-Matrix")
+      "6")
         local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
         [[ -n "$tgt" ]] && adv_header_matrix "$tgt"
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
         ;;
 
-      "Binary-Lineage-Analysis")
+      "7")
         adv_binary_lineage
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
         ;;
 
-      "PCAP-Deep-Analysis")
-        adv_pcap_summaries
-        ;;
-
-      "Certificate-Analysis")
+      "8")
         local tgt; tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
         [[ -n "$tgt" ]] && adv_cert_analysis "$tgt"
         ;;
 
-      "Protocol-Analysis")
-        say "═══ C2 Protocol Analysis ═══"
-        say ""
-        echo "Enter path to binary sample:"
+      "9")
+        adv_pcap_summaries
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
+        ;;
+
+      "P"|"p")
+        print_section_header "PROTOCOL ANALYSIS"
+        echo -e "${TEMPEST_WHITE}Enter path to binary sample:${NC} "
         read -r binary_path
 
         if [[ -f "$binary_path" ]]; then
-          echo "Enter output directory (default: protocol_analysis_$(date +%Y%m%d_%H%M%S)):"
+          echo -e "${TEMPEST_WHITE}Output directory [protocol_analysis_$(date +%Y%m%d_%H%M%S)]:${NC} "
           read -r output_dir
           output_dir="${output_dir:-protocol_analysis_$(date +%Y%m%d_%H%M%S)}"
 
           protocol_script="$(dirname "$0")/analyzers/protocol-analysis.sh"
           if [[ -x "$protocol_script" ]]; then
-            say "[*] Analyzing C2 protocol..."
+            audit_log "INFO" "Protocol analysis: $binary_path"
             bash "$protocol_script" "$binary_path" "$output_dir"
-            say "[✓] Analysis complete: $output_dir"
+            echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Analysis complete: $output_dir${NC}"
           else
-            say "[✗] Protocol analysis script not found"
+            echo -e "${TEMPEST_RED}${SYM_FAILURE} Protocol analysis script not found${NC}"
           fi
         else
-          say "[✗] Binary file not found: $binary_path"
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} Binary file not found${NC}"
         fi
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "Traffic-Capture")
-        say "═══ C2 Traffic Capture ═══"
-        say ""
-        echo "Capture mode: 1) IP 2) Domain 3) Analyze PCAP"
+      "T"|"t")
+        print_section_header "TRAFFIC CAPTURE"
+        echo -e "${TEMPEST_WHITE}Mode: 1) IP  2) Domain  3) Analyze PCAP${NC}"
         read -r capture_mode
 
         capture_script="$(dirname "$0")/analyzers/c2-traffic-capture.sh"
         case "$capture_mode" in
           1|2)
-            echo "Enter target:"
+            echo -e "${TEMPEST_WHITE}Enter target:${NC} "
             read -r target
-            echo "Duration (seconds) [60]:"
+            echo -e "${TEMPEST_WHITE}Duration (seconds) [60]:${NC} "
             read -r duration
             duration="${duration:-60}"
+            audit_log "INFO" "Traffic capture: $target for ${duration}s"
 
             if [[ "$capture_mode" == "1" ]]; then
               bash "$capture_script" --target-ip "$target" --duration "$duration" --output "./traffic_$(date +%Y%m%d_%H%M%S)" 2>&1 || true
@@ -1264,72 +1519,73 @@ advanced_menu(){
             fi
             ;;
           3)
-            echo "PCAP file path:"
+            echo -e "${TEMPEST_WHITE}PCAP file path:${NC} "
             read -r pcap_file
-            [[ -f "$pcap_file" ]] && bash "$capture_script" --analyze "$pcap_file" --output "./analysis_$(date +%Y%m%d_%H%M%S)" 2>&1 || say "[✗] File not found"
+            [[ -f "$pcap_file" ]] && bash "$capture_script" --analyze "$pcap_file" --output "./analysis_$(date +%Y%m%d_%H%M%S)" 2>&1 || echo -e "${TEMPEST_RED}${SYM_FAILURE} File not found${NC}"
             ;;
         esac
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "Sinkhole-Server")
-        say "═══ Sinkhole Server ${RED}[LAW ENFORCEMENT ONLY]${NC} ═══"
-        echo "Legal authorization? (yes/NO):"
+      "S"|"s")
+        print_section_header "SINKHOLE SERVER"
+        echo -e "${TEMPEST_RED}${BOLD}${SYM_CLASSIFIED} LAW ENFORCEMENT ONLY ${SYM_CLASSIFIED}${NC}"
+        echo -e "${TEMPEST_WHITE}Legal authorization confirmed? (yes/NO):${NC} "
         read -r auth_confirm
 
         if [[ "$auth_confirm" == "yes" ]]; then
-          echo "Cleanup payload path:"
+          audit_log "SEC" "Sinkhole server authorized"
+          echo -e "${TEMPEST_WHITE}Cleanup payload path:${NC} "
           read -r cleanup_path
 
           if [[ -f "$cleanup_path" ]]; then
-            echo "Phase (1-4) [1]:"
+            echo -e "${TEMPEST_WHITE}Phase (1-4) [1]:${NC} "
             read -r phase
             python3 "$(dirname "$0")/takeover/sinkhole-server.py" --cleanup "$cleanup_path" --phase "${phase:-1}" --legal-ack 2>&1 || true
           fi
         fi
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "Cleanup-Generator")
-        say "═══ Cleanup Generator ${RED}[LAW ENFORCEMENT ONLY]${NC} ═══"
-        echo "Legal authorization? (yes/NO):"
+      "C"|"c")
+        print_section_header "CLEANUP GENERATOR"
+        echo -e "${TEMPEST_RED}${BOLD}${SYM_CLASSIFIED} LAW ENFORCEMENT ONLY ${SYM_CLASSIFIED}${NC}"
+        echo -e "${TEMPEST_WHITE}Legal authorization confirmed? (yes/NO):${NC} "
         read -r auth_confirm
 
         if [[ "$auth_confirm" == "yes" ]]; then
-          echo "Platform (windows/linux) [windows]:"
+          audit_log "SEC" "Cleanup generator authorized"
+          echo -e "${TEMPEST_WHITE}Platform (windows/linux) [windows]:${NC} "
           read -r platform
           platform="${platform:-windows}"
 
           python3 "$(dirname "$0")/takeover/cleanup-generator.py" --platform "$platform" --profile generic --output "cleanup_${platform}.py" --legal-ack 2>&1 || true
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Cleanup payload generated${NC}"
         fi
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "BGP-Hijack-Enforcement")
-        say "═══ BGP Hijack ${RED}[EXTREME - COURT ORDER REQUIRED]${NC} ═══"
-        echo "COURT ORDER + ISP AUTHORIZATION? (yes/NO):"
+      "B"|"b")
+        print_section_header "BGP HIJACK ENFORCEMENT"
+        echo -e "${TEMPEST_RED}${BOLD}${BLINK}${SYM_CLASSIFIED} EXTREME - COURT ORDER REQUIRED ${SYM_CLASSIFIED}${NC}"
+        echo -e "${TEMPEST_WHITE}COURT ORDER + ISP AUTHORIZATION? (yes/NO):${NC} "
         read -r auth_confirm
 
         if [[ "$auth_confirm" == "yes" ]]; then
-          echo "Action: 1) Advertise 2) Withdraw 3) Monitor"
+          audit_log "SEC" "BGP hijack enforcement authorized"
+          echo -e "${TEMPEST_WHITE}Action: 1) Advertise  2) Withdraw  3) Monitor${NC}"
           read -r bgp_action
-          echo "Target prefix (CIDR):"
+          echo -e "${TEMPEST_WHITE}Target prefix (CIDR):${NC} "
           read -r target_prefix
-          echo "Legal auth file:"
+          echo -e "${TEMPEST_WHITE}Legal auth file:${NC} "
           read -r legal_auth
 
           case "$bgp_action" in
             1)
-              echo "Sinkhole IP:"
+              echo -e "${TEMPEST_WHITE}Sinkhole IP:${NC} "
               read -r sinkhole_ip
               bash "$(dirname "$0")/takeover/bgp-hijack-enforcement.sh" --action advertise --target-prefix "$target_prefix" --sinkhole-ip "$sinkhole_ip" --legal-auth "$legal_auth" 2>&1 || true
               ;;
@@ -1341,14 +1597,17 @@ advanced_menu(){
               ;;
           esac
         fi
-
-        echo ""
-        echo "Press Enter to continue..."
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
         read -r
         ;;
 
-      "Back"|*)
+      "X"|"x"|"")
         break
+        ;;
+
+      *)
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Invalid selection${NC}"
+        sleep 1
         ;;
     esac
   done
@@ -1510,39 +1769,57 @@ EOF
 
 # ---------- MAIN ----------
 clear
-echo "╔════════════════════════════════════════════════════════════════════╗"
-echo "║                    C2 Enumeration TUI v2.0                         ║"
-echo "║           Safe .onion C2 Analysis + PCAP + Static Analysis         ║"
-echo "╚════════════════════════════════════════════════════════════════════╝"
+
+# TEMPEST Classification Banner
+print_classification_banner_top
+
+# System Header
+print_system_header
+
+# Operator Identification
+echo -e "${TEMPEST_CYAN}┌──────────────────────────────────────────────────────────────────────────────┐${NC}"
+echo -e "${TEMPEST_CYAN}│${NC} ${TEMPEST_AMBER}OPERATOR AUTHENTICATION REQUIRED${NC}                                            ${TEMPEST_CYAN}│${NC}"
+echo -e "${TEMPEST_CYAN}└──────────────────────────────────────────────────────────────────────────────┘${NC}"
+echo ""
+echo -e "${TEMPEST_WHITE}Enter Operator ID (or press Enter for anonymous):${NC} "
+read -r input_operator
+if [[ -n "$input_operator" ]]; then
+    OPERATOR_ID="$input_operator"
+fi
+audit_log "AUDIT" "Session initiated by operator: $OPERATOR_ID"
+
 echo ""
 
 # Check dependencies
 if ! check_dependencies; then
   echo ""
-  echo "Press Enter to continue anyway, or Ctrl+C to exit..."
+  echo -e "${TEMPEST_YELLOW}${SYM_WARNING} Press Enter to continue with limited functionality...${NC}"
   read -r
 fi
 
-log "Starting c2-enum-tui v2.0-enhanced"
+log "Starting c2-enum-tui $VERSION"
 log "OUTDIR=$OUTDIR SOCKS=$SOCKS"
 log "TARGETS: ${TARGETS[*]}"
 log "PCAP: enabled=$PCAP_ON iface=$PCAP_IF filter='$PCAP_FILTER'"
+audit_log "INFO" "System initialized - OUTDIR: $OUTDIR"
 
 if [[ -z "${PCAP_DIR:-}" ]]; then PCAP_DIR="$OUTDIR/pcap"; fi
 
 # Start PCAP if enabled
 if $PCAP_ON; then
-  start_pcap || say "[!] PCAP failed to start, continuing without capture"
+  start_pcap || audit_log "WARN" "PCAP failed to start, continuing without capture"
 fi
 
 # Tor connectivity check
 if ! tor_check; then
-  say ""
-  say "[!] Tor connectivity issues detected!"
-  say "    Continue anyway? (y/N)"
+  echo ""
+  audit_log "WARN" "Tor connectivity issues detected"
+  echo -e "${TEMPEST_YELLOW}${SYM_WARNING} Tor connectivity issues detected!${NC}"
+  echo -e "${TEMPEST_WHITE}Continue anyway? (y/N):${NC} "
   read -r response
   if [[ ! "$response" =~ ^[Yy]$ ]]; then
-    say "Exiting."
+    audit_log "INFO" "Session terminated by operator - Tor unavailable"
+    echo -e "${TEMPEST_RED}Exiting.${NC}"
     exit 1
   fi
 fi
@@ -1552,312 +1829,382 @@ T=""
   for T in "${TARGETS[@]}"; do enumerate_target "$T"; done
   REPORT_PATH=$(build_report)
   ANALYSIS_PATH=$(static_analysis)
-  say "Report: $REPORT_PATH"
-  say "Static analysis: $ANALYSIS_PATH"
+  audit_log "INFO" "Auto-enumeration complete - Report: $REPORT_PATH"
+fi
+
+# Global TOR status for menu
+TOR_STATUS="OK"
+if ! "$CURL_BIN" --socks5-hostname "$SOCKS" -s --max-time 5 "https://check.torproject.org" >/dev/null 2>&1; then
+    TOR_STATUS="FAIL"
 fi
 
 while true; do
-  echo ""
-  echo "═══════════════════════════════════════════════════════════════"
-  echo " PCAP: $(pcap_status) | Targets: ${#TARGETS[@]} | OUTDIR: $(basename "$OUTDIR")"
-  echo "═══════════════════════════════════════════════════════════════"
+  clear
+  print_classification_banner_top
 
-  choice=$(menu_impl "C2 Enumeration — Main Menu" \
-    "1) Re-enumerate all targets" \
-    "2) Enumerate a specific target" \
-    "3) Add a new target" \
-    "C) COMPREHENSIVE SCAN (aggressive)" \
-    "I) INTELLIGENT ANALYSIS (AI-powered, auto-chain)" \
-    "R) Quick reachability check" \
-    "N) CLEARNET ENUMERATION (domains/IPs) ⭐ NEW" \
-    "Q) QUICK RECON (fast clearnet intel) ⭐ NEW" \
-    "B) BGP/ASN ANALYSIS (network intel) ⭐ NEW" \
-    "4) File picker (inspect outputs)" \
-    "5) Decompress *.zst to *.bin (read-only)" \
-    "6) Build YARA seed" \
-    "7) Build Suricata host rule" \
-    "8) View report" \
-    "9) View static analysis" \
-    "0) View log" \
-    "P) PCAP controls (Start/Stop/Status/Stats)" \
-    "T) Tor status check" \
-    "H) Hardware status (NPU/GPU/CPU)" \
-    "A) Advanced (port scan, snapshots, assets, headers)" \
-    "E) Export JSON report" \
-    "S) Summary dashboard" \
-    "T) Initiate Takeover/Handover" \
-    "X) Quit")
+  # Get current statuses
+  pcap_stat="OFF"
+  [[ -n "$PCAP_PID" ]] && kill -0 "$PCAP_PID" 2>/dev/null && pcap_stat="ON"
+
+  # Display TEMPEST-styled main menu
+  echo -e "${TEMPEST_CYAN}${BOLD}"
+  echo "┌──────────────────────────────────────────────────────────────────────────────┐"
+  echo "│                         MAIN OPERATIONS CONSOLE                              │"
+  echo "├──────────────────────────────────────────────────────────────────────────────┤"
+  echo -e "${NC}"
+
+  print_status_line "$pcap_stat" "${#TARGETS[@]}" "$TOR_STATUS"
+
+  echo ""
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}RECONNAISSANCE${TEMPEST_CYAN} ├─────────────────────────────────────┐${NC}"
+  tempest_menu_item "1" "Re-enumerate all targets"
+  tempest_menu_item "2" "Enumerate specific target"
+  tempest_menu_item "3" "Add new target"
+  tempest_menu_item "R" "Quick reachability check"
+  echo ""
+
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}CLEARNET OPERATIONS${TEMPEST_CYAN} ├────────────────────────────────┐${NC}"
+  tempest_menu_item "N" "CLEARNET ENUMERATION (domains/IPs)" "NEW"
+  tempest_menu_item "Q" "QUICK RECON (fast intel gathering)" "NEW"
+  tempest_menu_item "B" "BGP/ASN ANALYSIS (network intel)" "NEW"
+  echo ""
+
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}ADVANCED ANALYSIS${TEMPEST_CYAN} ├──────────────────────────────────┐${NC}"
+  tempest_menu_item "C" "COMPREHENSIVE SCAN (aggressive)"
+  tempest_menu_item "I" "INTELLIGENT ANALYSIS (AI-powered)"
+  tempest_menu_item "A" "Advanced Analysis Menu"
+  tempest_menu_item "J" "JavaScript Analysis" "NEW"
+  tempest_menu_item "W" "Content Crawler" "NEW"
+  echo ""
+
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}TAKEOVER OPERATIONS${TEMPEST_CYAN} ├────────────────────────────────┐${NC}"
+  tempest_menu_item "K" "Initiate Takeover/Handover" "SEC"
+  echo ""
+
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}REPORTS & ANALYSIS${TEMPEST_CYAN} ├─────────────────────────────────┐${NC}"
+  tempest_menu_item "4" "File picker (inspect outputs)"
+  tempest_menu_item "5" "Decompress *.zst to *.bin"
+  tempest_menu_item "6" "Build YARA seed"
+  tempest_menu_item "7" "Build Suricata host rule"
+  tempest_menu_item "8" "View report"
+  tempest_menu_item "9" "View static analysis"
+  tempest_menu_item "0" "View audit log"
+  tempest_menu_item "E" "Export JSON report"
+  tempest_menu_item "S" "Summary dashboard"
+  echo ""
+
+  echo -e "${TEMPEST_CYAN}┌─────────────────────┤ ${TEMPEST_AMBER}SYSTEM CONTROLS${TEMPEST_CYAN} ├───────────────────────────────────┐${NC}"
+  tempest_menu_item "P" "PCAP controls"
+  tempest_menu_item "T" "Tor status check"
+  tempest_menu_item "H" "Hardware status (NPU/GPU/CPU)"
+  tempest_menu_item "X" "Terminate session"
+  echo ""
+
+  print_classification_banner_bottom
+
+  echo -e "${TEMPEST_WHITE}SELECT OPERATION: ${NC}"
+  read -r choice
+
+  audit_log "AUDIT" "Menu selection: $choice"
 
   case "$choice" in
-    "1) Re-enumerate all targets")
-      say "[*] Re-enumerating ${#TARGETS[@]} targets..."
+    "1")
+      print_section_header "RE-ENUMERATION"
+      audit_log "INFO" "Re-enumerating ${#TARGETS[@]} targets"
       for T in "${TARGETS[@]}"; do
         enumerate_target "$T" || true
       done
       REPORT_PATH=$(build_report)
       ANALYSIS_PATH=$(static_analysis)
-      say "[✓] Enumeration complete. Report: $REPORT_PATH"
+      audit_log "INFO" "Enumeration complete - Report: $REPORT_PATH"
+      echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Enumeration complete${NC}"
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
       ;;
 
-    "2) Enumerate a specific target")
+    "2")
+      print_section_header "TARGET SELECTION"
       tgt=$(menu_impl "Pick target" "${TARGETS[@]}")
       if [[ -n "$tgt" ]]; then
+        audit_log "INFO" "Enumerating single target: $tgt"
         enumerate_target "$tgt"
         REPORT_PATH=$(build_report)
         ANALYSIS_PATH=$(static_analysis)
       fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
       ;;
 
-    "3) Add a new target")
-      echo "Enter .onion address (with optional :port):"
+    "3")
+      print_section_header "ADD TARGET"
+      echo -e "${TEMPEST_WHITE}Enter .onion address (with optional :port):${NC} "
       read -r new_target
       if [[ -n "$new_target" ]]; then
         TARGETS+=("$new_target")
-        say "[✓] Added: $new_target (Total targets: ${#TARGETS[@]})"
-        log "Target added: $new_target"
+        audit_log "INFO" "Target added: $new_target"
+        echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Added: $new_target (Total: ${#TARGETS[@]})${NC}"
       fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
       ;;
 
-    "C) COMPREHENSIVE SCAN (aggressive)")
-      say "═══ COMPREHENSIVE SCANNING MODE ═══"
-      say ""
-      say "This will perform aggressive enumeration including:"
-      say "  • Port scanning (37 common ports)"
-      say "  • Path enumeration (100+ paths)"
-      say "  • HTTP method testing"
-      say "  • Header analysis"
-      say "  • Binary artifact discovery"
-      say "  • Subdomain probing"
-      say "  • Technology fingerprinting"
-      say ""
-      say "WARNING: This is more aggressive and may be detected!"
-      say ""
-      echo "Continue? (y/N)"
+    "R"|"r")
+      print_section_header "REACHABILITY CHECK"
+      audit_log "INFO" "Performing reachability check on ${#TARGETS[@]} targets"
+      for tgt in "${TARGETS[@]}"; do
+        test_onion_reachable "$tgt" || true
+        echo ""
+      done
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
+      ;;
+
+    "J"|"j")
+      print_section_header "JAVASCRIPT ANALYSIS"
+      echo -e "${TEMPEST_AMBER}Analyze JavaScript files for C2 indicators${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Enter path to JavaScript file or directory:${NC} "
+      read -r js_path
+
+      if [[ -e "$js_path" ]]; then
+        js_script="$(dirname "$0")/analyzers/javascript-analysis.sh"
+        if [[ -x "$js_script" ]]; then
+          echo -e "${TEMPEST_WHITE}Enter output directory:${NC} "
+          read -r js_output
+          js_output="${js_output:-js_analysis_$(date +%Y%m%d_%H%M%S)}"
+          audit_log "INFO" "JavaScript analysis: $js_path -> $js_output"
+          bash "$js_script" "$js_path" "$js_output" || true
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Analysis complete: $js_output${NC}"
+        else
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} JavaScript analyzer not found${NC}"
+        fi
+      else
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Path not found: $js_path${NC}"
+      fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
+      ;;
+
+    "W"|"w")
+      print_section_header "CONTENT CRAWLER"
+      echo -e "${TEMPEST_AMBER}Crawl and extract content from C2 infrastructure${NC}"
+      echo ""
+
+      if [[ ${#TARGETS[@]} -gt 0 ]]; then
+        tgt=$(menu_impl "Select target to crawl" "${TARGETS[@]}")
+        if [[ -n "$tgt" ]]; then
+          crawler_script="$(dirname "$0")/analyzers/content-crawler.sh"
+          if [[ -x "$crawler_script" ]]; then
+            echo -e "${TEMPEST_WHITE}Max depth (1-5) [2]:${NC} "
+            read -r crawl_depth
+            crawl_depth="${crawl_depth:-2}"
+            audit_log "INFO" "Content crawl initiated: $tgt depth=$crawl_depth"
+            bash "$crawler_script" "$tgt" "$OUTDIR/crawl_${tgt//[^A-Za-z0-9._-]/_}" "$crawl_depth" || true
+            echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Crawl complete${NC}"
+          else
+            echo -e "${TEMPEST_RED}${SYM_FAILURE} Content crawler not found${NC}"
+          fi
+        fi
+      else
+        echo -e "${TEMPEST_YELLOW}${SYM_WARNING} No targets available${NC}"
+      fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
+      ;;
+
+    "C"|"c")
+      print_section_header "COMPREHENSIVE SCAN"
+      echo -e "${TEMPEST_AMBER}Aggressive enumeration mode${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Capabilities:${NC}"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Port scanning (37 common ports)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Path enumeration (100+ paths)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} HTTP method testing"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Header analysis"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Binary artifact discovery"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Technology fingerprinting"
+      echo ""
+      echo -e "${TEMPEST_RED}${SYM_WARNING} WARNING: This scan is aggressive and may be detected!${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Continue? (y/N):${NC} "
       read -r confirm
 
       if [[ "$confirm" =~ ^[Yy]$ ]]; then
         tgt=$(menu_impl "Select target for comprehensive scan" "${TARGETS[@]}")
         if [[ -n "$tgt" ]]; then
           comp_scan_script="$(dirname "$0")/c2-scan-comprehensive.sh"
-          if [[ ! -f "$comp_scan_script" ]]; then
-            comp_scan_script="/home/c2enum/toolkit/c2-scan-comprehensive.sh"
-          fi
+          [[ ! -f "$comp_scan_script" ]] && comp_scan_script="/home/c2enum/toolkit/c2-scan-comprehensive.sh"
 
           if [[ -f "$comp_scan_script" ]]; then
-            say "[*] Launching comprehensive scanner..."
+            audit_log "INFO" "Comprehensive scan initiated: $tgt"
             bash "$comp_scan_script" "$tgt" "$OUTDIR/comprehensive_${tgt//[^A-Za-z0-9._-]/_}"
-            say "[✓] Comprehensive scan complete!"
-            say ""
-            echo "Press Enter to continue..."
-            read -r
+            echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Comprehensive scan complete!${NC}"
           else
-            say "[✗] Comprehensive scanner not found: $comp_scan_script"
+            echo -e "${TEMPEST_RED}${SYM_FAILURE} Comprehensive scanner not found${NC}"
           fi
         fi
       else
-        say "Cancelled."
+        audit_log "INFO" "Comprehensive scan cancelled by operator"
       fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
       ;;
 
-    "I) INTELLIGENT ANALYSIS (AI-powered, auto-chain)")
-      say "═══ INTELLIGENT ANALYSIS ORCHESTRATOR ═══"
-      say ""
-      say "AI-powered analysis with hardware acceleration (NPU/GPU/CPU)"
-      say ""
-      say "Select Analysis Profile:"
-      echo "  1) Fast (CPU-only, basic tools)"
-      echo "  2) Balanced (GPU/NPU, standard tools)"
-      echo "  3) Exhaustive (All hardware, all tools, recursive)"
+    "I"|"i")
+      print_section_header "INTELLIGENT ANALYSIS"
+      echo -e "${TEMPEST_AMBER}AI-powered analysis with hardware acceleration${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Select Analysis Profile:${NC}"
+      echo -e "  ${TEMPEST_CYAN}1)${NC} Fast (CPU-only, basic tools)"
+      echo -e "  ${TEMPEST_CYAN}2)${NC} Balanced (GPU/NPU, standard tools)"
+      echo -e "  ${TEMPEST_CYAN}3)${NC} Exhaustive (All hardware, all tools)"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Profile:${NC} "
       read -r profile_choice
 
       case "$profile_choice" in
         1) profile="fast" ;;
         2) profile="balanced" ;;
         3) profile="exhaustive" ;;
-        *) say "Invalid choice"; continue ;;
+        *) echo -e "${TEMPEST_RED}Invalid choice${NC}"; continue ;;
       esac
 
       orchestrator_script="$(dirname "$0")/analyzers/orchestrator.sh"
       [[ ! -f "$orchestrator_script" ]] && orchestrator_script="/home/c2enum/toolkit/analyzers/orchestrator.sh"
 
       if [[ -f "$orchestrator_script" ]]; then
-        say "[*] Running intelligent analysis ($profile profile)..."
+        audit_log "INFO" "Intelligent analysis initiated: profile=$profile"
         bash "$orchestrator_script" "$OUTDIR" "$profile" 3
+        echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Intelligent analysis complete!${NC}"
 
-        say ""
-        say "[✓] Intelligent analysis complete!"
-        say ""
-        echo "View results? (y/N)"
+        echo -e "${TEMPEST_WHITE}View results? (y/N):${NC} "
         read -r view_choice
-
         if [[ "$view_choice" =~ ^[Yy]$ ]]; then
           [[ -f "$OUTDIR/intelligent_analysis/all_discovered_endpoints.txt" ]] && \
             "$LESS_BIN" "$OUTDIR/intelligent_analysis/all_discovered_endpoints.txt"
         fi
       else
-        say "[✗] Orchestrator not found"
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Orchestrator not found${NC}"
       fi
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
+      ;;
 
+    "N"|"n")
+      print_section_header "CLEARNET ENUMERATION"
+      echo -e "${TEMPEST_AMBER}Comprehensive clearnet C2 infrastructure enumeration${NC}"
       echo ""
-      echo "Press Enter to continue..."
-      read -r
-      ;;
-
-    "R) Quick reachability check")
-      say "═══ Quick Reachability Check ═══"
-      say ""
-      for tgt in "${TARGETS[@]}"; do
-        test_onion_reachable "$tgt" || true
-        say ""
-      done
-      echo "Press Enter to continue..."
-      read -r
-      ;;
-
-    "N) CLEARNET ENUMERATION (domains/IPs) ⭐ NEW")
-      say "═══ CLEARNET C2 ENUMERATION ═══"
-      say ""
-      say "This will perform comprehensive enumeration of clearnet C2 infrastructure:"
-      say "  • DNS resolution & validation"
-      say "  • Port scanning (standard: 23 ports / comprehensive: 60+ ports)"
-      say "  • HTTP/HTTPS enumeration with header analysis"
-      say "  • SSL certificate collection & analysis"
-      say "  • Service fingerprinting & banner grabbing"
-      say "  • ASN/BGP lookups & GeoIP resolution"
-      say "  • WHOIS data gathering"
-      say ""
-      echo "Enter targets file path (or press Enter to skip):"
+      echo -e "${TEMPEST_WHITE}Capabilities:${NC}"
+      echo -e "  ${TEMPEST_CYAN}•${NC} DNS resolution & validation"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Port scanning (23-60+ ports)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} HTTP/HTTPS header analysis"
+      echo -e "  ${TEMPEST_CYAN}•${NC} SSL certificate collection"
+      echo -e "  ${TEMPEST_CYAN}•${NC} ASN/BGP lookups & GeoIP"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Enter targets file path:${NC} "
       read -r targets_file
       if [[ -n "$targets_file" ]] && [[ -f "$targets_file" ]]; then
-        echo "Enter output directory (default: clearnet_enum_$(date +%Y%m%d_%H%M%S)):"
+        echo -e "${TEMPEST_WHITE}Output directory [clearnet_enum_$(date +%Y%m%d_%H%M%S)]:${NC} "
         read -r output_dir
         output_dir="${output_dir:-clearnet_enum_$(date +%Y%m%d_%H%M%S)}"
 
-        echo "Scan mode? (1=standard, 2=comprehensive) [2]:"
+        echo -e "${TEMPEST_WHITE}Scan mode (1=standard, 2=comprehensive) [2]:${NC} "
         read -r mode_choice
         case "$mode_choice" in
           1) scan_mode="standard" ;;
           *) scan_mode="comprehensive" ;;
         esac
 
-        say "[*] Starting clearnet enumeration..."
-        say "[*] Targets: $targets_file"
-        say "[*] Output: $output_dir"
-        say "[*] Mode: $scan_mode"
-        say ""
+        audit_log "INFO" "Clearnet enumeration: $targets_file mode=$scan_mode"
 
         if [[ -x "./c2-enum-clearnet.sh" ]]; then
           ./c2-enum-clearnet.sh "$targets_file" "$output_dir" "$scan_mode" || true
-          say ""
-          say "[✓] Clearnet enumeration complete!"
-          say "[*] Results saved to: $output_dir"
-          say "[*] Master report: $output_dir/MASTER_REPORT.txt"
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Clearnet enumeration complete!${NC}"
+          echo -e "${TEMPEST_CYAN}Report: $output_dir/MASTER_REPORT.txt${NC}"
         else
-          say "[!] Error: c2-enum-clearnet.sh not found or not executable"
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} c2-enum-clearnet.sh not found${NC}"
         fi
       else
-        say "[!] Invalid targets file: $targets_file"
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Invalid targets file${NC}"
       fi
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "Q) QUICK RECON (fast clearnet intel) ⭐ NEW")
-      say "═══ QUICK RECONNAISSANCE ═══"
-      say ""
-      say "Fast intelligence gathering for clearnet C2 infrastructure:"
-      say "  • Quick DNS resolution (3s timeout)"
-      say "  • ICMP reachability checks"
-      say "  • Fast port scanning (5 common C2 ports: 80, 443, 8080, 8443, 9000)"
-      say "  • HTTP header grabbing"
-      say "  • SSL certificate collection"
-      say "  • GeoIP via ipinfo.io API"
-      say "  • ~5-10 seconds per target"
-      say ""
-      say "Ideal for large target lists or potentially offline infrastructure."
-      say ""
-      echo "Enter targets file path (or press Enter to skip):"
+    "Q"|"q")
+      print_section_header "QUICK RECONNAISSANCE"
+      echo -e "${TEMPEST_AMBER}Fast intelligence gathering (~5-10s per target)${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Capabilities:${NC}"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Quick DNS resolution (3s timeout)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Fast port scanning (5 C2 ports)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} HTTP header grabbing"
+      echo -e "  ${TEMPEST_CYAN}•${NC} SSL certificate collection"
+      echo -e "  ${TEMPEST_CYAN}•${NC} GeoIP resolution"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Enter targets file path:${NC} "
       read -r targets_file
       if [[ -n "$targets_file" ]] && [[ -f "$targets_file" ]]; then
-        echo "Enter output directory (default: quick_recon_$(date +%Y%m%d_%H%M%S)):"
+        echo -e "${TEMPEST_WHITE}Output directory [quick_recon_$(date +%Y%m%d_%H%M%S)]:${NC} "
         read -r output_dir
         output_dir="${output_dir:-quick_recon_$(date +%Y%m%d_%H%M%S)}"
 
-        say "[*] Starting quick reconnaissance..."
-        say "[*] Targets: $targets_file"
-        say "[*] Output: $output_dir"
-        say ""
+        audit_log "INFO" "Quick reconnaissance: $targets_file"
 
         if [[ -x "./c2-quick-recon.sh" ]]; then
           ./c2-quick-recon.sh "$targets_file" "$output_dir" || true
-          say ""
-          say "[✓] Quick reconnaissance complete!"
-          say "[*] Results saved to: $output_dir"
-          say "[*] Master report: $output_dir/MASTER_REPORT.txt"
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Quick reconnaissance complete!${NC}"
+          echo -e "${TEMPEST_CYAN}Report: $output_dir/MASTER_REPORT.txt${NC}"
         else
-          say "[!] Error: c2-quick-recon.sh not found or not executable"
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} c2-quick-recon.sh not found${NC}"
         fi
       else
-        say "[!] Invalid targets file: $targets_file"
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Invalid targets file${NC}"
       fi
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "B) BGP/ASN ANALYSIS (network intel) ⭐ NEW")
-      say "═══ BGP/ASN INTELLIGENCE GATHERING ═══"
-      say ""
-      say "Network infrastructure analysis capabilities:"
-      say "  • ASN lookups (Team Cymru, RIPE Stat, BGPView)"
-      say "  • BGP routing information & prefix announcements"
-      say "  • GeoIP & network ownership details"
-      say "  • WHOIS data & abuse contacts"
-      say "  • BGP hijack/anomaly detection"
-      say "  • Upstream/downstream peer relationships"
-      say "  • Threat intelligence cross-reference"
-      say ""
-      echo "Enter IP address or domain to analyze:"
+    "B"|"b")
+      print_section_header "BGP/ASN INTELLIGENCE"
+      echo -e "${TEMPEST_AMBER}Network infrastructure analysis${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Capabilities:${NC}"
+      echo -e "  ${TEMPEST_CYAN}•${NC} ASN lookups (Team Cymru, RIPE, BGPView)"
+      echo -e "  ${TEMPEST_CYAN}•${NC} BGP routing information"
+      echo -e "  ${TEMPEST_CYAN}•${NC} GeoIP & ownership details"
+      echo -e "  ${TEMPEST_CYAN}•${NC} WHOIS & abuse contacts"
+      echo -e "  ${TEMPEST_CYAN}•${NC} Threat intelligence cross-reference"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Enter IP address or domain:${NC} "
       read -r target
       if [[ -n "$target" ]]; then
-        echo "Enter output file (default: bgp_analysis_${target//[:\/\.]/_}.txt):"
+        echo -e "${TEMPEST_WHITE}Output file [bgp_analysis_${target//[:\/\.]/_}.txt]:${NC} "
         read -r output_file
         output_file="${output_file:-bgp_analysis_${target//[:\/\.]/_}.txt}"
 
-        say "[*] Starting BGP/ASN analysis..."
-        say "[*] Target: $target"
-        say "[*] Output: $output_file"
-        say ""
+        audit_log "INFO" "BGP/ASN analysis: $target"
 
         if [[ -x "./analyzers/bgp-asn-intel.sh" ]]; then
           ./analyzers/bgp-asn-intel.sh "$target" "$output_file" || true
-          say ""
-          say "[✓] BGP/ASN analysis complete!"
-          say "[*] Report saved to: $output_file"
+          echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} BGP/ASN analysis complete!${NC}"
 
-          # Offer to view the report
-          echo ""
-          echo "View report now? (y/N)"
+          echo -e "${TEMPEST_WHITE}View report? (y/N):${NC} "
           read -r view_choice
-          if [[ "$view_choice" =~ ^[Yy]$ ]]; then
-            [[ -n "$LESS_BIN" ]] && "$LESS_BIN" -R "$output_file" || cat "$output_file"
-          fi
+          [[ "$view_choice" =~ ^[Yy]$ ]] && "$LESS_BIN" -R "$output_file"
         else
-          say "[!] Error: analyzers/bgp-asn-intel.sh not found or not executable"
+          echo -e "${TEMPEST_RED}${SYM_FAILURE} bgp-asn-intel.sh not found${NC}"
         fi
       else
-        say "[!] No target specified"
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} No target specified${NC}"
       fi
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "H) Hardware status (NPU/GPU/CPU)")
-      clear
-      say "═══ Hardware Acceleration Status ═══"
-      say ""
+    "H"|"h")
+      print_section_header "HARDWARE STATUS"
+      audit_log "INFO" "Hardware status check"
 
       hw_detect_script="$(dirname "$0")/analyzers/hw-detect.sh"
       [[ ! -f "$hw_detect_script" ]] && hw_detect_script="/home/c2enum/toolkit/analyzers/hw-detect.sh"
@@ -1865,146 +2212,160 @@ while true; do
       if [[ -f "$hw_detect_script" ]]; then
         bash "$hw_detect_script" text
       else
-        say "[✗] Hardware detection script not found"
+        echo -e "${TEMPEST_RED}${SYM_FAILURE} Hardware detection script not found${NC}"
       fi
 
-      # Also show OpenVINO status
+      # OpenVINO status
       if command -v python3 >/dev/null 2>&1; then
         ov_accel="$(dirname "$0")/analyzers/openvino-accelerator.py"
         [[ ! -f "$ov_accel" ]] && ov_accel="/home/c2enum/toolkit/analyzers/openvino-accelerator.py"
-
-        if [[ -f "$ov_accel" ]]; then
-          say ""
-          python3 "$ov_accel" --detect 2>&1 || say "OpenVINO check failed"
-        fi
+        [[ -f "$ov_accel" ]] && python3 "$ov_accel" --detect 2>&1 || true
       fi
 
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "4) File picker (inspect outputs)")
+    "4")
+      print_section_header "FILE PICKER"
       file_picker_menu
       ;;
 
-    "5) Decompress *.zst to *.bin (read-only)")
+    "5")
+      print_section_header "DECOMPRESS ARTIFACTS"
+      audit_log "INFO" "Decompressing artifacts"
       decompress_artifacts
-      ;;
-
-    "6) Build YARA seed")
-      y=$(make_yara_seed)
-      say "[✓] YARA seed: $y"
-      [[ -f "$y" ]] && "$LESS_BIN" -R "$y"
-      ;;
-
-    "7) Build Suricata host rule")
-      r=$(make_suricata_rule)
-      say "[✓] Suricata rule: $r"
-      [[ -f "$r" ]] && "$LESS_BIN" -R "$r"
-      ;;
-
-    "8) View report")
-      if [[ -f "$OUTDIR/report.txt" ]]; then
-        "$LESS_BIN" -R "$OUTDIR/report.txt"
-      else
-        say "[!] No report yet. Run enumeration first."
-      fi
-      ;;
-
-    "9) View static analysis")
-      if [[ -f "$OUTDIR/static_analysis.txt" ]]; then
-        "$LESS_BIN" -R "$OUTDIR/static_analysis.txt"
-      else
-        say "[!] No analysis yet. Run enumeration first."
-      fi
-      ;;
-
-    "0) View log")
-      "$LESS_BIN" -R "$LOG"
-      ;;
-
-    "P) PCAP controls (Start/Stop/Status/Stats)")
-      pcap_menu
-      ;;
-
-    "T) Tor status check")
-      tor_status
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "A) Advanced (snapshots, assets, headers, lineage)")
+    "6")
+      print_section_header "YARA SEED GENERATOR"
+      y=$(make_yara_seed)
+      audit_log "INFO" "YARA seed generated: $y"
+      echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} YARA seed: $y${NC}"
+      [[ -f "$y" ]] && "$LESS_BIN" -R "$y"
+      ;;
+
+    "7")
+      print_section_header "SURICATA RULE GENERATOR"
+      r=$(make_suricata_rule)
+      audit_log "INFO" "Suricata rule generated: $r"
+      echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Suricata rule: $r${NC}"
+      [[ -f "$r" ]] && "$LESS_BIN" -R "$r"
+      ;;
+
+    "8")
+      print_section_header "VIEW REPORT"
+      if [[ -f "$OUTDIR/report.txt" ]]; then
+        "$LESS_BIN" -R "$OUTDIR/report.txt"
+      else
+        echo -e "${TEMPEST_YELLOW}${SYM_WARNING} No report yet. Run enumeration first.${NC}"
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
+      fi
+      ;;
+
+    "9")
+      print_section_header "VIEW STATIC ANALYSIS"
+      if [[ -f "$OUTDIR/static_analysis.txt" ]]; then
+        "$LESS_BIN" -R "$OUTDIR/static_analysis.txt"
+      else
+        echo -e "${TEMPEST_YELLOW}${SYM_WARNING} No analysis yet. Run enumeration first.${NC}"
+        echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+        read -r
+      fi
+      ;;
+
+    "0")
+      print_section_header "AUDIT LOG"
+      "$LESS_BIN" -R "$LOG"
+      ;;
+
+    "P"|"p")
+      pcap_menu
+      ;;
+
+    "T"|"t")
+      print_section_header "TOR STATUS"
+      tor_status
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
+      ;;
+
+    "A"|"a")
       advanced_menu
       ;;
 
-    "E) Export JSON report")
+    "E"|"e")
+      print_section_header "JSON EXPORT"
       export_json
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
+      read -r
       ;;
 
-    "S) Summary dashboard")
+    "S"|"s")
       show_dashboard
       ;;
 
-    "T) Initiate Takeover/Handover")
-      say "═══ C2 Server Takeover/Handover Initiation ═══"
-      say ""
-      say "WARNING: This action is for authorized personnel only and"
-      say "initiates a formal process to package all collected evidence"
-      say "for handover to appropriate authorities. Every action will be"
-      say "logged for legal purposes."
-      say ""
-      echo "Enter Operator ID to proceed, or leave blank to cancel:"
-      read -r operator_id
+    "K"|"k")
+      print_section_header "TAKEOVER/HANDOVER INITIATION"
+      echo -e "${TEMPEST_RED}${BOLD}${SYM_CLASSIFIED} CLASSIFIED OPERATION ${SYM_CLASSIFIED}${NC}"
+      echo ""
+      echo -e "${TEMPEST_YELLOW}WARNING: This action is for authorized personnel only.${NC}"
+      echo -e "${TEMPEST_WHITE}Initiates formal evidence packaging for authority handover.${NC}"
+      echo -e "${TEMPEST_WHITE}All actions are logged for legal purposes.${NC}"
+      echo ""
+      echo -e "${TEMPEST_WHITE}Enter Operator ID to proceed (blank to cancel):${NC} "
+      read -r op_id
 
-      if [[ -n "$operator_id" ]]; then
-        say "Operator ID provided: $operator_id"
-        say "Please select the scan directory to process:"
+      if [[ -n "$op_id" ]]; then
+        audit_log "SEC" "Takeover initiated by operator: $op_id"
 
-        # Find potential scan directories
+        # Find scan directories
         mapfile -t scan_dirs < <(find . -maxdepth 1 -type d -name "intel_*" -o -name "comprehensive_scan_*" | sort -r)
 
         if [[ ${#scan_dirs[@]} -eq 0 ]]; then
-            say "[!] No scan directories found to process."
+            echo -e "${TEMPEST_YELLOW}${SYM_WARNING} No scan directories found${NC}"
         else
             selected_dir=$(menu_impl "Select Scan Directory" "${scan_dirs[@]}")
 
             if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
                 takeover_script="$(dirname "$0")/takeover/takeover.sh"
-                if [[ ! -f "$takeover_script" ]]; then
-                    takeover_script="/home/c2enum/toolkit/takeover/takeover.sh"
-                fi
+                [[ ! -f "$takeover_script" ]] && takeover_script="/home/c2enum/toolkit/takeover/takeover.sh"
 
                 if [[ -f "$takeover_script" ]]; then
-                    say "[*] Initiating takeover process for: $selected_dir"
-                    bash "$takeover_script" "$selected_dir" "$operator_id"
-                    say "[✓] Takeover process finished."
+                    audit_log "SEC" "Takeover processing: $selected_dir"
+                    bash "$takeover_script" "$selected_dir" "$op_id"
+                    echo -e "${TEMPEST_GREEN}${SYM_SUCCESS} Takeover process complete${NC}"
                 else
-                    say "[✗] Takeover script not found!"
+                    echo -e "${TEMPEST_RED}${SYM_FAILURE} Takeover script not found${NC}"
                 fi
             else
-                say "[!] Invalid selection or directory not found."
+                echo -e "${TEMPEST_YELLOW}${SYM_WARNING} Invalid selection${NC}"
             fi
         fi
       else
-        say "Takeover process cancelled."
+        audit_log "INFO" "Takeover cancelled by operator"
       fi
-      echo ""
-      echo "Press Enter to continue..."
+      echo -e "${TEMPEST_WHITE}Press Enter to continue...${NC}"
       read -r
       ;;
 
-    "X) Quit"|""|"X"|"x")
-      say "[*] Shutting down..."
+    "X"|"x"|"")
+      print_section_header "SESSION TERMINATION"
+      audit_log "AUDIT" "Session terminated by operator: $OPERATOR_ID"
+      echo -e "${TEMPEST_AMBER}Shutting down...${NC}"
       break
       ;;
 
     *)
-      say "[!] Invalid choice"
+      echo -e "${TEMPEST_RED}${SYM_FAILURE} Invalid selection${NC}"
+      sleep 1
       ;;
   esac
 done
 
-log "Done."
+audit_log "INFO" "System shutdown complete"
+print_classification_banner_bottom
 exit 0
