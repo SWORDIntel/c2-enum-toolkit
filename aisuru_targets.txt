@@ -1,0 +1,32 @@
+# AISURU Botnet C2 Infrastructure
+# Extracted from threat intelligence report
+# Date: 2025-11-17
+
+# === C2 Command & Control Domains ===
+coerece.ilovegaysex.su
+approach.ilovegaysex.su
+ministry.ilovegaysex.su
+lane.ilovegaysex.su
+a.6mv1eyr328y6due83u3js6whtzuxfyhw.ru
+
+# === Report/Download Servers ===
+u.ilovegaysex.su
+updatetoto.tw
+
+# === Proxy Relay C2 IPs ===
+194.46.59.169    # United Kingdom|England|Exeter - AS206509 KCOM GROUP LIMITED
+104.171.170.241  # United States|Virginia|Ashburn - AS7922 Comcast Cable Communications, LLC
+104.171.170.253  # United States|Virginia|Ashburn - AS7922 Comcast Cable Communications, LLC
+107.173.196.189  # United States|New York|Buffalo - AS36352 ColoCrossing
+64.188.68.193    # United States|District of Columbia|Washington - AS46339 CSDVRS, LLC
+78.108.178.100   # Czech Republic|Praha, Hlavni mesto|Prague - AS62160 Yes Networks Un
+
+# === GRE Tunnel C2 IPs ===
+151.242.2.22     # GRE Tunnel enabled - Primary C2
+151.242.2.23     # GRE Tunnel enabled - Primary C2
+151.242.2.24     # GRE Tunnel enabled - Primary C2
+151.242.2.25     # GRE Tunnel enabled - Primary C2
+
+# === Known Attack Targets (for reference) ===
+# 185.211.78.117   # Attacked in September 2025 with 11.5 Tbps
+# krebsonsecurity.com # Attacked in May 2025
