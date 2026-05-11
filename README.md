@@ -13,6 +13,7 @@ Government-grade toolkit for analyzing and neutralizing Command & Control (C2) i
 ---
 
 ## 🎯 **What This Toolkit Does**
+Note:due to sheer misuse potential,kp14 is private...id rather not hand out the power to RE any malware to source in 5 minutes 
 
 - 🕵️ **Enumerates** C2 infrastructure (ports, paths, binaries, certificates) on .onion and clearnet
 - 🔍 **Discovers** hidden endpoints via steganography and decryption
