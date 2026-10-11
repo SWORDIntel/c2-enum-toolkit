@@ -3,7 +3,6 @@
 **TEMPEST CLASS C Compliant Intelligence Platform for C2 Infrastructure Analysis & Neutralization**
 
 [![Version](https://img.shields.io/badge/version-3.0--TEMPEST-blue)]()
-[![License](https://img.shields.io/badge/license-Law%20Enforcement%20%2F%20Defensive-red)]()
 [![Code Quality](https://img.shields.io/badge/code%20quality-92%2F100-brightgreen)]()
 [![Hardware](https://img.shields.io/badge/hardware-NPU%2FGPU%2FCPU-orange)]()
 [![Interface](https://img.shields.io/badge/interface-TEMPEST%20Class%20C-yellow)]()
@@ -999,3 +998,7 @@ docker attach c2-enum-toolkit            # Attach to TUI
 **Get Started:** `docker-compose up` or `./c2-enum-tui.sh`
 
 **For Authorized Use Only:** Law enforcement, defensive security research, CTF competitions.
+
+## License
+
+This project's SWORD-owned code is licensed under the **SWORD Restricted Source Licence v1.0 (SRSL-1.0)**. Personal and non-commercial use is permitted under its terms; commercial exploitation requires a separate written agreement. Third-party components retain their own licences. See [LICENSE](LICENSE).
