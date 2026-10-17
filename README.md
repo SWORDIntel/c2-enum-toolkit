@@ -1001,4 +1001,4 @@ docker attach c2-enum-toolkit            # Attach to TUI
 
 ## License
 
-This project's SWORD-owned code is licensed under the **SWORD Restricted Source Licence v1.0 (SRSL-1.0)**. Personal and non-commercial use is permitted under its terms; commercial exploitation requires a separate written agreement. Third-party components retain their own licences. See [LICENSE](LICENSE).
+This project's SWORD-owned code is licensed under the **SWORD Restricted Source Licence v1.1 (SRSL-1.1)**. Personal and non-commercial use is permitted under its terms; commercial exploitation requires a separate written agreement. Third-party components retain their own licences. See [LICENSE](LICENSE) and [migration notes](SRSL_MIGRATION.md). Previously valid SRSL-1.0 grants continue for their original copies.
